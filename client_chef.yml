@@ -1,0 +1,45 @@
+---
+- hosts: centos
+  vars:
+    ntp_server: "admin.test" # name or ip of NTP server
+  tasks:
+    - name: Open Ports
+      firewalld:
+        service: "{{ item }}"
+        permanent: true
+        state: enabled
+      with_items:
+        - http
+        - https
+        - ssh
+        - ntp
+    - block:
+      # Install and configure NTP
+      - name: Install NTP
+        yum:
+          name: ntp
+          state: installed
+      - name: Set ntp.conf server
+        lineinfile:
+          path: /etc/ntp.conf
+          regexp: "server 0.centos.pool.ntp.org iburst"
+          line: "server {{ ntp_server }} iburst"
+      - name: Remove other ntp.conf servers
+        lineinfile:
+          path: /etc/ntp.conf
+          line: "server {{ item }}.centos.pool.ntp.org iburst"
+          state: absent
+        with_items:
+          - 1
+          - 2
+          - 3
+      - name: Add Fudging
+        lineinfile:
+          path: /etc/ntp.conf
+          line: "fudge {{ ntp_server }} stratum 10"
+          insertafter: "server {{ ntp_server }} iburst"
+          state: present
+      - name: Start NTP service
+        service:
+          name: ntpd
+          state: restarted

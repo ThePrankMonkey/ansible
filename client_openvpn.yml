@@ -1,0 +1,146 @@
+---
+- hosts: lab.test.local #linux:!localhost
+  vars:
+    ca_server: "admin.test.local"
+    ca_ip: "10.0.2.4"
+  vars_prompt:
+    - name: "password"
+      prompt: "What do you want to be the password for client certificates?"
+      default: "insecurepass"
+    - name: "password_confirm"
+      prompt: "Confirm password for client certificates."
+      default: "insecurepass"
+    - name: "ca_password"
+      prompt: "What is the password for CA certificate?"
+      default: "insecurepass"
+    - name: "ca_password_confirm"
+      prompt: "Confirm password for CA certificate."
+      default: "insecurepass"
+  tasks:
+    # Checking that entered passwords match
+    - block:
+      - name: Passwords matching for Client Certificates
+        debug:
+          msg: "Exiting because client certificates passwords do not match. Run again."
+      - name: Exit if passwords do not match
+        meta: end_play
+      when: password != password_confirm
+    - block:
+      - name: Passwords matching for CA Certificate
+        debug:
+          msg: "Exiting because CA certificate passwords do not match. Run again."
+      - name: Exit if passwords do not match
+        meta: end_play
+      when: ca_password != ca_password_confirm
+    - name: Install Epel Release
+      yum:
+        name: epel-release
+        state: present
+    - name: Install easy-rsa, openvpn, and python-pip
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - "openvpn"
+        - "easy-rsa"
+        - "python-pip"
+    - name: Install PExpect Module
+      pip:
+        name: pexpect
+        state: present
+    - name: Make easyrsa executable
+      file:
+        path: /usr/share/easy-rsa/3/easyrsa
+        mode: "+x"
+    - name: Initialize PKI Folder
+      shell: ./easyrsa init-pki
+      args:
+        chdir: /usr/share/easy-rsa/3/
+        creates: /usr/share/easy-pki/3/pki/
+    - name: Generate PKI Request
+      expect:
+        chdir: /usr/share/easy-rsa/3/ 
+        command: ./easyrsa gen-req {{ ansible_hostname }}
+        responses:
+          'Enter PEM pass phrase':
+            - "{{ password }}"
+            - "{{ password }}"
+          'Common Name': "{{ ansible_hostname }}"
+    - name: Clear Folder for REQs on Ansible Master
+      local_action:
+        module: file
+        path: /tmp/pkireqs/
+        state: absent
+      run_once: True
+    - name: Transport REQ to Ansible Master
+      fetch:
+        src: /usr/share/easy-rsa/3/pki/reqs/{{ ansible_hostname }}.req
+        dest: /tmp/pkireqs/
+        flat: yes
+    # Handle importing the reqs on the local machine
+    - name: Gather File List
+      local_action:
+        module: find
+        paths: /tmp/pkireqs/
+        patterns: '*.req'
+      run_once: True
+      register: found_reqs
+#    - name: DEBUG Found REQs
+#      debug:
+#        msg: "{{ item.path }} __ {{ item.path.split('/')[-1].split('.')[0] }}"
+#      with_items:
+#        - "{{ found_reqs.files }}"
+    - name: Import Reqs into CA
+      local_action:
+        module: command ./easyrsa import-req {{ item.path }} {{ item.path.split('/')[-1].split('.')[0] }}
+        chdir: /etc/openvpn/easy-rsa
+      with_items:
+        - "{{ found_reqs.files }}"
+      run_once: True
+    - name: Sign the Requests
+      local_action:
+        module: expect
+        command: ./easyrsa sign-req client {{ item.path.split('/')[-1].split('.')[0] }}
+        chdir: /etc/openvpn/easy-rsa
+        responses:
+          'Confirm request details': 'yes'
+          'Enter pass phrase': "{{ ca_password }}"
+      with_items:
+        - "{{ found_reqs.files }}"
+    # Return the generated keys and certs to each client
+    - name: Create Folder for Keys on Clients
+      file:
+        path: /usr/share/easy-rsa/3/keys
+        state: directory
+    - name: Return Keys to Clients
+      copy:
+        src: "{{ item }}"
+        dest: /usr/share/easy-rsa/3/keys/
+      with_items:
+        - "/etc/openvpn/easy-rsa/pki/ca.crt"
+        - "/etc/openvpn/easy-rsa/pki/issued/{{ ansible_hostname}}.crt"
+    # Build OVPN File
+    - name: Add OVPN File
+      copy:
+        dest: /usr/share/easy-rsa/3/{{ ansible_hostname }}.ovpn
+        content: |
+                 client
+                 dev tun
+                 proto udp
+                 remote {{ ca_ip }} 1194
+                 resolv-retry infinite
+                 nobind
+                 persist-key
+                 persist-tun
+                 mute-replay-warnings
+                 ca /usr/share/easy-rsa/3/keys/ca.crt
+                 cert /usr/share/easy-rsa/3/keys/{{ ansible_hostname }}.crt
+                 key /usr/share/easy-rsa/3/pki/private/{{ ansible_hostname }}.key
+                 remote-cert-tls server
+                 comp-lzo
+    - name: Add Script to Load OVPN File
+      copy:
+        dest: /usr/share/easy-rsa/3/start.sh
+        content: |
+                 openvpn --config {{ ansible_hostname }}.ovpn
+        mode: +x

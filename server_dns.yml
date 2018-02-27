@@ -1,0 +1,173 @@
+---
+- hosts: localhost
+  vars:
+    # Please set these values
+    dns_name: "dns"     # This is the hostname that you'll tell other machines to check against.
+    fqdn: "test.local"  # This is the domain that you'll be hosting.
+    subnet_mask: "24"   # Can be 24 or 16 
+    # Please do not edit this section
+    ip: "{{ ansible_default_ipv4.address }}"
+    ip_forward: "{{ ip.split('.') }}"
+    ip_reverse: "{{ ip_forward[::-1] }}"
+    reverse_zone: "{{ ip_reverse[1:]|join('.') if subnet_mask == '24' else ip_reverse[2:]|join('.') }}"
+    reverse_db: "{{ ip_forward[:3]|join('.') if subnet_mask == '24' else ip_forward[:2]|join('.') }}"
+    last_octet: "{{ ip_reverse[:1]|join('.') if subnet_mask == '24' else ip_reverse[:2]|join('.') }}"
+    # Feel free to override if the above breaks
+    reverse:
+      zone: "{{ reverse_zone }}"   #"2.0.10"     # First three cotets of network in reverse order (assuming /24)
+      db: "{{ reverse_db }}"       #"10.0.2"     # First three octets of network (assuming /24)
+    forward: "{{ fqdn }}"         #"test.local" # FQDN suffix for your domain
+    host: "{{ dns_name }}"         #"dns"        # Name for dns host
+    host_ip: "{{ ip }}"            #"10.0.2.4"   # Full IP for dns host
+    host_octet: "{{ last_octet }}" #"4"          # Last octet in dns host ip
+    host_sub: "{{ subnet_mask }}"  #"24"         # CIDR Subnet for dns host
+  tasks:
+    - name: Install bind and bind-utils
+      yum:
+        name: "{{ item }}"
+        state: installed
+      with_items:
+        - "bind"
+        - "bind-utils"
+    - block:
+      # Handle configurations
+      - name: Edit Listen-On
+        lineinfile:
+          path: /etc/named.conf
+          regexp: "^#?	listen-on port 53 {"
+          line: "	listen-on port 53 { {{ reverse.db }}/{{ host_sub }}; };"
+      - name: Edit Listen-On-V6
+        lineinfile:
+          path: /etc/named.conf
+          regexp: "^	listen-on-v6 port 53 {.*$"
+          line: "#	listen-on-v6 port 53 { ::1; };"
+      - name: Edit Allow-Query
+        lineinfile:
+          path: /etc/named.conf
+          regexp: "^	allow-query     {.*$"
+          line: "	allow-query     { {{ reverse.db }}/{{ host_sub }}; };"
+      - name: Disable Recursion
+        lineinfile:
+          path: /etc/named.conf
+          regexp: "^	recursion (yes|no);$"
+          line: "	recursion no;"
+      - name: Add include for local file
+        lineinfile:
+          path: /etc/named.conf
+          state: present
+          line: "include \"/etc/named/named.conf.local\";"
+    - block:
+      # Handle the named.conf.local file
+      - name: Create Folder
+        file:
+          path: /etc/named/
+          state: directory
+          mode: "u=rwx,g=rx,o=rx"
+      - name: Create file
+        file:
+          path: /etc/named/named.conf.local
+          state: touch
+      - name: Clear file
+        shell: echo "" > /etc/named/named.conf.local
+        # This is a hacky fix for the next two tasks not working right. #
+      - name: Add Forward Zone
+        lineinfile:
+          path: /etc/named/named.conf.local
+          state: present
+          line: |
+                zone "{{ forward }}" {
+                    type master;
+                    file "/etc/named/zones/db.{{ forward }}";
+                };
+      - name: Add Reverse Zone
+        lineinfile:
+          path: /etc/named/named.conf.local
+          state: present
+          line: |
+                zone "{{ reverse.zone }}.in-addr.arpa" {
+                    type master;
+                    file "/etc/named/zones/db.{{ reverse.db }}";
+                };
+    - name: Create Zones Folder
+      file:
+        path: /etc/named/zones/
+        state: directory
+    - block:   
+      # For Forward Zone DB
+      - name: Create Forward Zone DB
+        file:
+          path: "/etc/named/zones/db.{{ forward }}"
+          state: touch
+      - name: Clear File
+        shell: echo "" > "/etc/named/zones/db.{{ forward }}"
+      - name: Add SOA Record
+        lineinfile:
+          path: "/etc/named/zones/db.{{ forward }}"
+          line: |
+                $TTL    604800
+                @       IN      SOA     {{ host }}.{{ forward }}. admin.{{ forward }}. (
+                                  3   ; Serial
+                             604800   ; Refresh
+                              86400   ; Retry
+                            2419200   ; Expire
+                             604800 ) ; Negative Cache TTL
+                ;
+      - name: Add NS Record
+        lineinfile:
+          path: "/etc/named/zones/db.{{ forward }}"
+          line: |
+                ; name servers - NS records
+                    IN      NS      {{ host }}.{{ forward }}.
+      - name: Add A Records
+        lineinfile:
+          path: "/etc/named/zones/db.{{ forward }}"
+          line: |
+                ; name servers - A records
+                {{ host }}.{{ forward }}.      IN      A       {{ host_ip }}
+    - block:   
+      # For Reverse Zone DB
+      - name: Create Reverse Zone DB
+        file:
+          path: "/etc/named/zones/db.{{ reverse.db }}"
+          state: touch
+      - name: Clear File
+        shell: echo "" > "/etc/named/zones/db.{{ reverse.db }}"
+      - name: Add SOA Record
+        lineinfile:
+          path: "/etc/named/zones/db.{{ reverse.db }}"
+          line: |
+                $TTL    604800
+                @       IN      SOA     {{ host }}.{{ forward }}. admin.{{ forward }}. (
+                                  3   ; Serial
+                             604800   ; Refresh
+                              86400   ; Retry
+                            2419200   ; Expire
+                             604800 ) ; Negative Cache TTL
+                ;
+      - name: Add NS Record
+        lineinfile:
+          path: "/etc/named/zones/db.{{ reverse.db }}"
+          line: |
+                ; name servers - NS records
+                    IN      NS      {{ host }}.{{ forward }}.
+      - name: Add PTR Records
+        lineinfile:
+          path: "/etc/named/zones/db.{{ reverse.db }}"
+          line: |
+                ; PTR Records
+                {{ host_octet }}   IN      PTR     {{ host }}.{{ forward }}.    ; {{ host_ip }}
+    - block:
+      # Handle the firewall
+      - name: Add Port to Firewall
+        firewalld:
+          service: dns
+          state: enabled
+          permanent: true
+      - name: Restart Firewall
+        systemd:
+          name: firewalld
+          state: restarted
+    - name: Restart DNS
+      systemd:
+        name: named
+        state: restarted

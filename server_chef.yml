@@ -1,0 +1,103 @@
+---
+- hosts: localhost
+  vars_prompt:
+    - name: prompt_password
+      prompt: "What password would you like to use?"
+      default: "insecurepass"
+  vars:
+    mem: 1
+    ntp_timezone: "America/New_York"
+    ntp_servers: "us.pool.ntp.org"
+    ntp_scope: "10.0.2.0"
+    chef_web: "https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/"
+    chef_rpm: "chef-server-core-12.17.15-1.el7.x86_64.rpm"
+    rsa_path: "/workspace/rsa/"
+    addons: True
+    user: 
+      name: "admin"
+      first: "Admin"
+      last: "Admin"
+      email: "admin@test.test"
+      pass: prompt_password
+      rsa: "{{ rsa_path }}chefadmin.pem"
+    org: 
+      short: "testlab"
+      full: "My Test Lab"
+      rsa: "{{ rsa_path }}cheforg.pem"
+  tasks:
+   - block:
+     - name: Set Local Time Zone
+       timezone:
+         name: "{{ ntp_timezone }}" 
+     - name: Install NTP
+       yum:
+         name: ntp
+         state: installed
+       register: ntp_install
+     - block:
+       - name: Update ntp.conf servers
+         replace:
+           path: /etc/ntp.conf
+           regexp: 'centos\.pool\.ntp\.org'
+           replace: "{{ ntp_servers }}"
+       - name: Update ntp.conf restriction
+         lineinfile:
+           path: /etc/ntp.conf
+           regexp: '^#restrict 192\.168\.1\.0'
+           line: "restrict {{ ntp_scope }} mask 255.255.255.0 nomodify notrap"
+       register: ntp_conf
+     - name: Enable NTPD Service
+       service:
+         name: ntpd
+         enabled: yes
+         state: restarted
+       when: ntp_install.changed or ntp_conf.changed
+     - name: Configure Firewall for NTP
+       firewalld:
+         service: ntp
+         permanent: true
+         state: enabled
+       register: firewall
+     - name: Restart Firewall
+       service:
+         name: firewalld
+         state: restarted
+       when: firewall.changed
+   - name: Add Chef RPM
+     yum:
+       name: "{{ chef_web + chef_rpm }}"
+       state: present
+   - name: Install Chef Server
+     yum:
+       name: chef-server-core.x86_64
+       state: installed
+     register: chef_install
+   - name: Start Chef Stack
+     command: chef-server-ctl reconfigure
+   - block:
+       - name: Ensure folder exists for RSA Tokens
+         file:
+           path: "{{ rsa_path }}"
+           state: directory
+       - name: Create Admin Account
+         command: chef-server-ctl user-create "{{user.name}}" "{{user.first}}" "{{user.last}}" "{{user.email}}" "{{user.pass}}" --filename "{{user.rsa}}"
+       - name: Create Starter Organization
+         command: chef-server-ctl org-create "{{org.short}}" "{{org.full}}" --association_user "{{user.name}}" --filename "{{org.rsa}}"
+     #when: chef_install.changed
+   - block:
+       - name: Install Chef Manage
+         command: chef-server-ctl install chef-manage
+       - name: Restart Chef Server
+         command: chef-server-ctl reconfigure
+       - name: Start Chef Manage
+         command: chef-manage-ctl reconfigure --accept-license
+       - name: Add Firewall Exception
+         firewalld:
+           service: https
+           permanent: true
+           state: enabled
+       - name: Restart Firewall
+         service:
+           name: firewalld
+           state: restarted
+     when: chef_install.changed and addons

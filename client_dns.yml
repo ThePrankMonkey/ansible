@@ -1,0 +1,57 @@
+---
+- hosts: linux
+  vars:
+    dns_server1: "10.0.2.4"  # Your local DNS server
+    dns_server2: "8.8.8.8"   # Google's DNS for internet looks ups
+    domain: "test.local"     # Domain suffix to append
+    interface: "{{ ansible_default_ipv4.interface }}"
+    interface_path: "/etc/sysconfig/network-scripts/ifcfg-{{ interface }}"
+    static_ip: "{{ ansible_default_ipv4.address }}"
+    gateway: "{{ ansible_default_ipv4.gateway }}"
+  tasks:
+  - name: Backup Interface Configuration
+    file:
+      path: "{{ interface_path }}"
+      state: touch
+      backup: yes 
+  - block:
+    # Edit the interface file
+    - name: Remove DHCP
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^BOOTPROTO='
+        line: "BOOTPROTO=none"
+    - name: Set Static IP
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^IPADDR='
+        line: "IPADDR={{ static_ip }}"
+    - name: Set Gateway
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^GATEWAY='
+        line: "GATEWAY={{ gateway }}"
+    - name: Set Subnet Mask
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^PREFIX='
+        line: "PREFIX=24"
+    - name: Set Domain
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^DOMAIN='
+        line: "DOMAIN={{ domain }}"
+    - name: Set Primary DNS
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^DNS1='
+        line: "DNS1={{ dns_server1 }}"
+    - name: Set Secondary DNS
+      lineinfile:
+        path: "{{ interface_path }}"
+        regexp: '^DNS2='
+        line: "DNS2={{ dns_server2 }}"
+  - name: Restart Network
+    systemd:
+      name: network
+      state: restarted

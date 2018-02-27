@@ -1,0 +1,213 @@
+---
+- hosts: localhost
+  vars:
+    dns1: "10.0.2.4"
+    dns2: "8.8.8.8"
+    key:
+      country: "US"
+      province: "VA"
+      city: "Herndon"
+      org: "TestLab"
+      email: "admin@test.local"
+      ou: "test"
+      name: "server"
+      cn: "admin.test.local"
+  vars_prompt:
+    - name: "password"
+      prompt: "What do you want to be the password for certificates?"
+      default: "insecurepass"
+    - name: "password_confirm"
+      prompt: "Confirm password for certificates."
+      default: "insecurepass"
+  tasks:
+    - block:
+      - name: Passwords do not match
+        debug:
+          msg: "Exiting because passwords do not match. Run again."
+      - name: Exit if passwords do not match
+        meta: end_play
+      when: password != password_confirm
+    - name: Install Epel Release
+      yum:
+        name: "epel-release"
+        state: present
+    - name: Install OpenVPN, Easy-RSA, and Python-Pip
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - "openvpn"
+        - "easy-rsa"
+        - "python-pip"
+    - name: Install PExpect Module
+      pip:
+        name: pexpect
+        state: present
+    - name: Find Starter Configuration
+      find:
+        paths: /usr/share/doc/
+        patterns: "openvpn-*"
+        file_type: directory
+      register: starter
+    - name: DEBUG
+      debug:
+        msg: "{{ starter.files[0].path }}"
+    - name: Copy over Starter Configuration
+      copy:
+        src: "{{ starter.files[0].path }}/sample/sample-config-files/server.conf"
+        dest: /etc/openvpn
+        remote_src: yes
+    #########################
+    # Configure Server.conf #
+    #########################
+    - name: Edit server.conf - redirect gateway
+      lineinfile:
+        path: /etc/openvpn/server.conf
+        regexp: ';push "redirect-gateway def1 bypass-dhcp"'
+        line: 'push "redirect-gateway def1 bypass-dhcp"'
+    - name: Edit server.conf - DNS 1
+      lineinfile:
+        path: /etc/openvpn/server.conf
+        regexp: ';push "dhcp-option DNS'
+        line: 'push "dhcp-option DNS {{ dns1 }}"'
+    - name: Edit server.conf - DNS 2
+      lineinfile:
+        path: /etc/openvpn/server.conf
+        regexp: ';push "dhcp-option DNS'
+        line: 'push "dhcp-option DNS {{ dns2 }}"'
+    - name: Edit server.conf - remove user/group
+      lineinfile:
+        path: /etc/openvpn/server.conf
+        regexp: ";?{{ item }}"
+        line: "{{ item }}"
+      with_items:
+        - "user nobody"
+        - "group nobody"
+    ########################
+    # Generate OpenVPN key #
+    ########################
+    - name: Make folder for key
+      file:
+        path: /etc/openvpn/easy-rsa/{{ item }}
+        state: directory
+      with_items:
+        - "x509-types"
+        - "keys"
+    - name: Copy keys over 1/2
+      copy:
+        src: "/usr/share/easy-rsa/3.0/{{ item.path }}"
+        dest: /etc/openvpn/easy-rsa/{{ item.path }}
+        remote_src: yes
+      with_filetree:
+        - "/usr/share/easy-rsa/3.0/"
+      when:
+        item.state == 'file'
+    - name: Copy keys over 2/2
+      copy:
+        src: /etc/openvpn/easy-rsa/openssl-1.0.cnf
+        dest: /etc/openvpn/easy-rsa/openssl.cnf
+        remote_src: yes
+    - name: Set easyrsa as Executable
+      file:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        mode: "+x"
+    ###########################
+    # Configure Key Variables #
+    ###########################
+    - name: Set Variables - Country - 1/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_COUNTRY	"
+        line: '	set_var EASYRSA_REQ_COUNTRY	"{{ key.country }}"'
+    - name: Set Variables - Province - 2/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_PROVINCE	"
+        line: '	set_var EASYRSA_REQ_PROVINCE	"{{ key.province }}"'
+    - name: Set Variables - City - 3/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_CITY	"
+        line: '	set_var EASYRSA_REQ_CITY	"{{ key.city }}"'
+    - name: Set Variables - Organization - 4/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_ORG	"
+        line: '	set_var EASYRSA_REQ_ORG		"{{ key.org }}"'
+    - name: Set Variables - Email - 5/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_EMAIL	"
+        line: '	set_var EASYRSA_REQ_EMAIL	"{{ key.email }}"'
+    - name: Set Variables - OU - 6/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_OU	"
+        line: '	set_var EASYRSA_REQ_OU		"{{ key.ou }}"'
+    - name: Set Variables - Common Name - 7/7
+      lineinfile:
+        path: /etc/openvpn/easy-rsa/easyrsa
+        regexp: "	set_var EASYRSA_REQ_CN	"
+        line: '	set_var EASYRSA_REQ_CN		"{{ key.cn }}"'
+    ##################
+    # Build out PKIs #
+    ##################
+    # https://ask.fedoraproject.org/en/question/99889/easy_rsa-vars-file-missing/
+    - name: Running ./easyrsa init-pki
+      shell: ./easyrsa init-pki
+      args:
+        chdir: /etc/openvpn/easy-rsa
+        creates: /etc/openvpn/easy-rsa/pki
+    - name: Build CA cert
+      expect:
+        chdir: /etc/openvpn/easy-rsa
+        command: ./easyrsa build-ca
+        responses:
+          'Enter PEM pass phrase':
+            - "{{ password }}"
+            - "{{ password }}"
+          'Common Name': "{{ key.cn }}"
+    - name: Build Server Full
+      expect:
+        chdir: /etc/openvpn/easy-rsa
+        command: ./easyrsa build-server-full {{ key.cn }}
+        responses:
+          'Enter PEM':
+            - "{{ password }}"
+            - "{{ password }}"
+          'Enter pass': "{{ password }}"
+    - name: Copy certs to keys directory
+      copy:
+        src: "{{ item }}"
+        dest: /etc/openvpn/easy-rsa/keys/
+        remote_src: yes
+      with_fileglob:
+        - "/etc/openvpn/easy-rsa/pki/ca.crt"
+        - "/etc/openvpn/easy-rsa/pki/certs_by_serial/*.pem"
+        - "/etc/openvpn/easy-rsa/pki/issued/{{ key.cn }}.crt"
+        - "/etc/openvpn/easy-rsa/pki/private/{{ key.cn }}.key"
+    ######################
+    # Configure Firewall #
+    ######################
+    - name: Add OpenVPN service to Firewall
+      firewalld:
+        service: openvpn
+        permanent: true
+        state: enabled
+    - name: Set up masquerade on Firewall
+      firewalld:
+        masquerade: yes
+        state: enabled
+        permanent: true
+        zone: nat
+    - name: Restart Firewall
+      service:
+        name: firewalld
+        state: restarted
+    ##########################
+    # Set up OpenVPN Service #
+    ##########################
+    - name: Add OpenVPN Service
+      service:
+        name: openvpn
+        state: restarted

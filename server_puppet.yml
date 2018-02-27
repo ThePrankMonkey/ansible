@@ -1,0 +1,62 @@
+---
+- hosts: localhost
+  vars:
+    mem: 1
+    ntp_timezone: "America/New_York"
+    ntp_servers: "us.pool.ntp.org"
+    core_have: "{{ facter_processors.count | int }}"
+    core_need: "{{ 2 | int }}"
+    ram_have: "{{ facter_memory.system.total_bytes | int }}"
+    ram_need: "{{ 1610612736 | int }}" # 1.5GB in bytes
+    puppet_rpm: "https://yum.puppetlabs.com/puppetlabs-release-pc1-el-7.noarch.rpm"
+  tasks:
+   - name: "Checking System Requirements: CPU Cores"
+     assert:
+       that:
+         - "core_have >= core_need"
+       msg: "Processor count is: {{ core_have  }} of {{ core_need }}"
+   - name: "Checking System Requirements: System RAM"
+     assert:
+       that:
+         - "ram_have >= ram_need"
+       msg: "Available RAM is: {{ ram_have }} of {{ ram_need }}"
+   - name: Set Local Time Zone
+     timezone:
+       name: "{{ ntp_timezone }}" 
+   - name: Install NTP
+     yum:
+       name: ntp
+       state: installed
+     register: ntp_install
+   - name: Update ntp.conf
+     replace:
+       path: /etc/ntp.conf
+       regexp: "centos.pool.ntp.org"
+       replace: "{{ ntp_servers }}"
+     register: ntp_conf
+   - name: Enable NTPD Service
+     service:
+       name: ntpd
+       enabled: yes
+       state: restarted
+     when: ntp_install.changed or ntp_conf.changed
+   - name: Add Puppet RPM
+     yum:
+       name: "{{ puppet_rpm }}"
+       state: present
+   - name: Install Puppet Server
+     yum:
+       name: puppetserver
+       state: installed
+     register: puppet_install
+   - name: Configure puppetserver Conf
+     lineinfile:
+       path: /etc/sysconfig/puppetserver
+       regexp: '^JAVA_ARGS'
+       line: "JAVA_ARGS=\"-Xms{{ mem }}g -Xmx{{ mem }}g\""
+   - name: Start Puppet Server Service
+     service:
+       name: puppetserver
+       enabled: yes
+       state: restarted
+     when: puppet_install.changed

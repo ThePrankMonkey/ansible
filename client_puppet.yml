@@ -1,0 +1,36 @@
+---
+- hosts: windows:linux:!localhost
+  vars:
+    puppet_rpm: "https://yum.puppetlabs.com/puppetlabs-release-pc1-el-7.noarch.rpm"
+    puppet_msi: "puppet-agent-5.3.3-x64.msi"
+    puppet_web: "https://downloads.puppetlabs.com/windows/puppet5/"
+    win_dest: 'C:\Temp\'
+  tasks:
+   # Handle CentOS deployment
+   - name: Add Puppet RPM
+     yum:
+       name: "{{ puppet_rpm }}"
+       state: present
+     when: ansible_os_family in ['RedHat']
+   - name: Install Puppet Agent
+     yum:
+       name: puppet-agent
+       state: installed
+     register: puppet_install
+     when: ansible_os_family in ['RedHat']
+   # Handle Windows deployment
+   - name: Create download folder
+     win_file:
+       path: "{{ win_dest }}"
+       state: directory
+     when: ansible_os_family == "Windows"
+   - name: Download puppet agent executable
+     win_get_url:
+       url: "{{ puppet_web }}{{ puppet_msi }}"
+       dest: "{{ win_dest }}"
+     when: ansible_os_family == "Windows"
+   - name: Install Puppet Agent
+     win_package:
+       path: "{{ win_dest }}{{ puppet_msi }}"
+       state: present
+     when: ansible_os_family == "Windows"
