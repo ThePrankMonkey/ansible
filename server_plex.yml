@@ -12,25 +12,32 @@
       checksum: "{{ checkSum }}"
   - name: Install PlexMediaServer
     yum:
-      name: "{ localDest }"
+      name: "{{ localDest }}"
       state: present
-  - name: Start Plex Media Server
+  - name: Start PlexMediaServer
     service:
       name: plexmediaserver
       enabled: true
       state: restarted
-  - name: Open Port for Plex
-    firewalld:
-      port: 32400/tcp
-      permanent: true
-      state: enabled
-  - name: Restart Firewall
+  - name: Add Plex Firewall service
+    copy:
+      dest: /etc/firewalld/services/plex.xml
+      content: |
+               <service>
+                 <short>plex</short>
+                 <description>PlexMediaServer Service</description>
+                 <port protocol="tcp" port="32400"/>
+               </service>
+  - name: Reload Firewalld (Report Plex network service)
     service:
       name: firewalld
       state: restarted
-# Note, add NFS steps.
-# firewall-cmd --permanent --zone=public --add-service=nfs
-# firewall-cmd --reload
-# yum install nfs-utils -y 
-# mount 192.168.1.2:/mnt/Media /mnt/nfs/media/
-# edit fstab: 192.168.1.2:/mnt/Media  /mnt/nfs/media/  nfs  rw,sync,hard,intr  0  0
+  - name: Open Port for Plex
+    firewalld:
+      service: plex
+      permanent: true
+      state: enabled
+  - name: Reload Firewalld (Start Plex network service)
+    service: 
+      name: firewalld
+      state: restarted
