@@ -18,3 +18,10 @@
       # pip install sabyenc --upgrade
       # pip install yenc
       # https://forensics.cert.org/centos/cert/7/x86_64//unrar-5.3.0-1.el7.x86_64.rpm
+
+# Note, add NFS steps.
+# firewall-cmd --permanent --zone=public --add-service=nfs
+# firewall-cmd --reload
+# yum install nfs-utils -y 
+# mount 192.168.1.2:/mnt/Media /mnt/nfs/media/
+# edit fstab: 192.168.1.2:/mnt/Media  /mnt/nfs/media/  nfs  rw,sync,hard,intr  0  0
