@@ -1,0 +1,123 @@
+---
+- hosts: centos.test.local
+  vars:
+    rpmKey: "http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF"
+    yumRepo: "http://download.mono-project.com/repo/centos/"
+    sonarrTar: "http://update.sonarr.tv/v2/master/mono/NzbDrone.master.tar.gz"
+    tempDest: "/tmp/nzbdrone.tar.gz"
+    checkSum: "sha256:c3a7845f99cf7d76f749ea961f79e8b5a55d15a1a20be01d5dd1b5b318d0f90c"
+  tasks:
+  - name: Install epel and yum-utils
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - epel-release
+      - yum-utils
+  - name: Add Sonarr RPM Key
+    rpm_key:
+      state: present
+      key: "{{ rpmKey }}"
+  - name: Add repository
+    yum_repository:
+      name: mono
+      description: Mono Repo
+      baseurl: "{{ yumRepo }}"
+  - name: Add other packages 1/2
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - wget
+      - mediainfo
+      - libzen
+      - libmediainfo
+      - curl
+      - gettext
+      - mono-core
+      - mono-devel
+      - sqlite.x86_64
+  - name: Add other packages 2/2
+    yum: 
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - wget
+      - git
+      - par2cmdline
+      - p7zip
+#      - unrar
+      - unzip
+      - tar
+      - gcc
+#      - python-yenc
+      - python-feedparser
+      - python-configobj
+      - python-cheetah
+      - python-dbus
+#      - python-support
+      - python-devel
+      - libxslt-devel
+  - name: Download NzbDrone
+    get_url:
+      dest: "{{ tempDest }}"
+      url: "{{ sonarrTar }}"
+      checksum: "{{ checkSum }}"
+  - name: Extract NznDrone Tar
+    unarchive:
+      src: "{{ tempDest }}"
+      dest: /usr/local/
+      remote_src: yes
+  - name: Make sonarr user
+    user:
+      name: sonarr
+      state: present
+      shell: /sbin/nologin
+  - name: Set file permissions
+    file:
+      path: /usr/local/NzbDrone
+      owner: sonarr
+      recurse: yes
+  - name: Create Sonarr Service
+    copy:
+      dest: /usr/lib/systemd/system/sonarr.service
+      content: |
+               [Unit]
+               Description=Sonarr Daemon
+               After=syslog.target network.target
+               [Service]
+               User=sonarr
+               Group=sonarr
+               Type=simple
+               ExecStart=/usr/bin/mono /usr/local/NzbDrone/NzbDrone.exe -nobrowser -data /usr/local/NzbDrone/
+               TimeoutStopSec=20
+               [Install]
+               WantedBy=multi-user.target
+  - name: Add firewall service
+    copy:
+      dest: /etc/firewalld/services/sonarr.xml
+      content: |
+               <service>
+                 <short>sonarr</short>
+                 <description>Sonarr Download Service</description>
+                 <port protocol="tcp" port="8989"/>
+               </service>
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
+  - name: Modify Firewall
+    firewalld:
+      service: sonarr
+      permanent: true
+      state: enabled
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
+  - name: Start Sonarr service
+    service:
+      name: sonarr
+      enabled: yes
+      state: restarted
+      
