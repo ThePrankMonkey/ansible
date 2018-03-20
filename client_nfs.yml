@@ -1,0 +1,27 @@
+---
+- hosts: plex:sabnzb:sonarr
+  vars:
+    nfs_ip: "192.168.1.2"
+    mount_local: "/mnt/nfs/media"
+    mount_remote: "/mnt/Media"
+  tasks:
+  - name: Install NFS-Utils
+    yum:
+      name: nfs-utils
+      state: present
+  - name: Add NFS to Firewall
+    firewalld:
+      service: nfs
+      permanent: true
+      state: enabled
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
+  - name: Mount NFS Share
+    mount:
+      path: "{{ mount_local }}"
+      fstype: nfs
+      src: "{{ nfs_ip }}:{{ mount_remote }}"
+      state: mounted
+      opts: "rw,sync,hard,intr"
