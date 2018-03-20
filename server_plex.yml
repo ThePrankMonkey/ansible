@@ -1,5 +1,5 @@
 ---
-- hosts: centos.test.local
+- hosts: plex
   vars:
     plexRPM: "https://downloads.plex.tv/plex-media-server/1.12.0.4829-6de959918/plexmediaserver-1.12.0.4829-6de959918.x86_64.rpm"
     checkSum: "sha256:5d5977dab72a31e51b58273b83175a87d61edec1b6ce6c43b686219e75e25d3a"
