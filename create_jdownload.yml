@@ -1,0 +1,39 @@
+# https://www.2daygeek.com/install-java-openjdk-6-7-8-on-ubuntu-centos-debian-fedora-mint-rhel-opensuse-manjaro-archlinux/#
+# http://jdownloader.org/download/index
+# https://quickbox.io/knowledgebase/jdownloader-2-headless-installation-on-ubuntu-16-04/
+---
+- hosts: jdown
+  vars:
+    unrar_link: "https://forensics.cert.org/centos/cert/7/x86_64//unrar-5.3.0-1.el7.x86_64.rpm"
+  task:
+  - name: Install Headless Java
+    yum:
+      name: java-1.8.0-openjdk-headless.x86_64
+      state: present
+  - name: Install UnRar
+    yum:
+      name: "{{ unrar_link }}"
+      state: present
+  - name: Copy JDownloader.jar over
+    debug:
+      msg: "I need to figure this part out, might involve installing tools to download from mega.nz."
+  - name: Create jdownload.service
+    copy:
+      path: /usr/lib/systemd/system/jdownload.service
+      content: |
+               [Unit]
+               Description=JDownloader2
+               [Service]
+               Type=forking
+               ExecStart=/usr/bin/java -jar /opt/jdownloader/JDownloader.jar
+               #RemainAfterExit=yes
+               TimeoutSec=1y
+               [Install]
+               WantedBy=multi-user.target
+  - name: Enable jdownload service
+    service:
+      name: jdownload
+      enable: yes
+  - name: Give message to user
+    debug:
+      msg: "Needs to be instructions on setting up the ''service''"
