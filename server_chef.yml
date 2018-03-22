@@ -9,8 +9,8 @@
     ntp_timezone: "America/New_York"
     ntp_servers: "us.pool.ntp.org"
     ntp_scope: "10.0.2.0"
-    chef_web: "https://packages.chef.io/files/stable/chef-server/12.17.15/el/7/"
-    chef_rpm: "chef-server-core-12.17.15-1.el7.x86_64.rpm"
+    chef_web: "https://packages.chef.io/files/stable/chef-server/12.17.33/el/7/"
+    chef_rpm: "chef-server-core-12.17.33-1.el7.x86_64.rpm"
     rsa_path: "/workspace/rsa/"
     addons: True
     user: 
@@ -45,7 +45,7 @@
            path: /etc/ntp.conf
            regexp: '^#restrict 192\.168\.1\.0'
            line: "restrict {{ ntp_scope }} mask 255.255.255.0 nomodify notrap"
-       register: ntp_conf
+         register: ntp_conf
      - name: Enable NTPD Service
        service:
          name: ntpd
