@@ -1,0 +1,137 @@
+---
+- hosts: centos.test.local
+  vars:
+    mono_key: "http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF"
+    mono_repo: "http://download.mono-project.com/repo/centos/"
+    unrar_link: "https://forensics.cert.org/centos/cert/7/x86_64//unrar-5.3.0-1.el7.x86_64.rpm"
+    radarr_tar: "https://github.com/Radarr/Radarr/releases/download/v0.2.0.995/Radarr.develop.0.2.0.995.linux.tar.gz"
+    check_sum: "sha256:da5248cb8b70ccb574612b07eefcfe3d1923a603faea5d1e73c57c2c92d04f13"
+    test: "Test"
+  tasks:
+  - name: Install epel and yum-utils
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - epel-release
+      - yum-utils
+      - python-pip
+  - name: Add Mono RPM Key
+    rpm_key:
+      state: present
+      key: "{{ mono_key }}"
+  - name: Add repository
+    yum_repository:
+      name: mono
+      description: Mono Repo
+      baseurl: "{{ mono_repo }}"
+  - name: Install UnRar
+    yum:
+      name: "{{ unrar_link }}"
+      state: present
+  - name: Install Pip Modules
+    pip:
+      name: "{{ item }}"
+    with_items:
+    - yenc
+  - name: Add other packages 1/2
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - wget
+      - mediainfo
+      - libzen
+      - libmediainfo
+      - curl
+      - gettext
+      - mono-core
+      - mono-devel
+      - sqlite.x86_64
+  - name: Add other packages 2/2
+    yum: 
+      name: "{{ item }}"
+      state: present
+    with_items:
+      - wget
+      - git
+      - par2cmdline
+      - p7zip
+#      - unrar
+      - unzip
+      - tar
+      - gcc
+#      - python-yenc
+      - python-feedparser
+      - python-configobj
+      - python-cheetah
+      - python-dbus
+#      - python-support
+      - python-devel
+      - libxslt-devel
+  - name: Download Radarr
+    get_url:
+      dest: /tmp/
+      url: "{{ radarr_tar }}"
+      checksum: "{{ check_sum }}"
+    register: radarr_download
+  - name: Extract Radarr Tar
+    unarchive:
+      src: "{{ radarr_download.dest }}"
+      dest: /opt/
+      remote_src: yes
+  - name: Make radarr user
+    user:
+      name: radarr
+      state: present
+      shell: /sbin/nologin
+  - name: Set file permissions
+    file:
+      path: /opt/Radarr/
+      owner: radarr
+      group: radarr
+      recurse: yes
+  - name: Create System Service for Radarr
+    copy:
+      dest: /usr/lib/systemd/system/radarr.service
+      content: |
+               [Unit]
+               Description=Radarr Daemon
+               After=syslog.target network.target
+               [Service]
+               User=radarr
+               Group=radarr
+               Type=simple
+               ExecStart=/usr/bin/mono --debug /opt/Radarr/Radarr.exe -nobrowser
+               TimeoutStopSec=20
+               KillMode=process
+               Restart=on-failure
+               [Install]
+               WantedBy=multi-user.target
+  - name: Create Firewall Service for Radarr
+    copy:
+      dest: /etc/firewalld/services/radarr.xml
+      content: |
+               <service>
+                 <short>radarr</short>
+                 <description>Radarr Download Service</description>
+                 <port protocol="tcp" port="7878"/>
+               </service>
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
+  - name: Modify Firewall
+    firewalld:
+      service: radarr
+      permanent: true
+      state: enabled
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
+  - name: Start Radarr service
+    service:
+      name: radarr
+      enabled: yes
+      state: restarted
