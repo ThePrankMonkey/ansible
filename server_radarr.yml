@@ -134,3 +134,5 @@
       name: radarr
       enabled: yes
       state: restarted
+      daemon_reload: yes
+
