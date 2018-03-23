@@ -1,3 +1,6 @@
+# https://github.com/Radarr/Radarr/wiki/Installation
+# https://github.com/Radarr/Radarr/wiki/Autostart-on-Linux
+
 ---
 - hosts: centos.test.local
   vars:
@@ -31,9 +34,7 @@
       state: present
   - name: Install Pip Modules
     pip:
-      name: "{{ item }}"
-    with_items:
-    - yenc
+      name: yenc
   - name: Add other packages 1/2
     yum:
       name: "{{ item }}"
@@ -57,11 +58,9 @@
       - git
       - par2cmdline
       - p7zip
-#      - unrar
       - unzip
       - tar
       - gcc
-#      - python-yenc
       - python-feedparser
       - python-configobj
       - python-cheetah
@@ -89,7 +88,7 @@
     file:
       path: /opt/Radarr/
       owner: radarr
-      group: radarr
+      #group: radarr
       recurse: yes
   - name: Create System Service for Radarr
     copy:
