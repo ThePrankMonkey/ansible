@@ -74,30 +74,26 @@
      register: chef_install
    - name: Start Chef Stack
      command: chef-server-ctl reconfigure
-   - block:
-       - name: Ensure folder exists for RSA Tokens
-         file:
-           path: "{{ rsa_path }}"
-           state: directory
-       - name: Create Admin Account
-         command: chef-server-ctl user-create "{{user.name}}" "{{user.first}}" "{{user.last}}" "{{user.email}}" "{{user.pass}}" --filename "{{user.rsa}}"
-       - name: Create Starter Organization
-         command: chef-server-ctl org-create "{{org.short}}" "{{org.full}}" --association_user "{{user.name}}" --filename "{{org.rsa}}"
-     #when: chef_install.changed
-   - block:
-       - name: Install Chef Manage
-         command: chef-server-ctl install chef-manage
-       - name: Restart Chef Server
-         command: chef-server-ctl reconfigure
-       - name: Start Chef Manage
-         command: chef-manage-ctl reconfigure --accept-license
-       - name: Add Firewall Exception
-         firewalld:
-           service: https
-           permanent: true
-           state: enabled
-       - name: Restart Firewall
-         service:
-           name: firewalld
-           state: restarted
-     when: chef_install.changed and addons
+   - name: Ensure folder exists for RSA Tokens
+     file:
+       path: "{{ rsa_path }}"
+       state: directory
+   - name: Create Admin Account
+     command: chef-server-ctl user-create "{{user.name}}" "{{user.first}}" "{{user.last}}" "{{user.email}}" "{{user.pass}}" --filename "{{user.rsa}}"
+   - name: Create Starter Organization
+     command: chef-server-ctl org-create "{{org.short}}" "{{org.full}}" --association_user "{{user.name}}" --filename "{{org.rsa}}"
+   - name: Install Chef Manage
+     command: chef-server-ctl install chef-manage
+   - name: Restart Chef Server
+     command: chef-server-ctl reconfigure
+   - name: Start Chef Manage
+     command: chef-manage-ctl reconfigure --accept-license
+   - name: Add Firewall Exception
+     firewalld:
+       service: https
+       permanent: true
+       state: enabled
+   - name: Restart Firewall
+     service:
+       name: firewalld
+       state: restarted
