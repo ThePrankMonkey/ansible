@@ -51,6 +51,15 @@
         path: "{{ interface_path }}"
         regexp: '^DNS2='
         line: "DNS2={{ dns_server2 }}"
+  - name: Add Firewall Exception
+    firewalld:
+      service: dns
+      permanent: true
+      state: enabled
+  - name: Restart Firewall
+    service:
+      name: firewalld
+      state: restarted
   - name: Restart Network
     systemd:
       name: network
