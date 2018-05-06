@@ -1,0 +1,53 @@
+---
+- hosts: ftp
+  vars:
+  - test: "test"
+  tasks:
+  - name: Install vsftpd
+    yum:
+      name: vsftpd
+      state: present
+  - name: Create ftpsecure User
+    user:
+      name: ftpsecure
+  - name: Create FTP Users Group
+    group:
+      name: ftpusers
+  - name: Configure vsftpd.conf
+    block:
+    - name: Disable Anonymous Access
+      lineinfile:
+        path: "/etc/vsftpd/vsftpd.conf"
+        regexp: '^anonymous_enable='
+        line: "anonymous_enable=NO"
+    - name: Enable Local Accounts
+      lineinfile:
+        path: "/etc/vsftpd/vsftpd.conf"
+        regexp: '^local_enable='
+        line: "local_enable=YES"
+    - name: Disable Write Access
+      lineinfile:
+        path: "/etc/vsftpd/vsftpd.conf"
+        regexp: '^write_enable='
+        line: "write_enable=NO"
+    - name: Enable Jail
+      lineinfile:
+        path: "/etc/vsftpd/vsftpd.conf"
+        regexp: '^chroot_local_user='
+        line: "chroot_local_user=YES"
+    - name: Set NoPriv User
+      lineinfile:
+        path: "/etc/vsftpd/vsftpd.conf"
+        regexp: 'nopriv_user='
+        line: "nopriv_user=ftpsecure"
+  - name: Enable Service
+    service:
+      name: vsftpd
+      state: restarted
+      enabled: yes
+  - name: Open Port
+    firewalld:
+      service: ftp
+      state: enabled
+      permanent: true
+      immediate: yes
