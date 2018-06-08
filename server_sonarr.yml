@@ -29,7 +29,7 @@
     yum:
       name: "{{ unrar_link }}"
       state: present
-    - name: Install Pip Modules
+  - name: Install Pip Modules
     pip:
       name: "{{ item }}"
     with_items:
