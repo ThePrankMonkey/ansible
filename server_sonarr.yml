@@ -8,12 +8,15 @@
     tempDest: "/tmp/nzbdrone.tar.gz"
     checkSum: "sha256:c3a7845f99cf7d76f749ea961f79e8b5a55d15a1a20be01d5dd1b5b318d0f90c"
   tasks:
-  - name: Install epel and yum-utils
+  - name: Install epel
+    yum:
+      name: epel-release
+      state: present
+  - name: Install pip and yum-utils
     yum:
       name: "{{ item }}"
       state: present
     with_items:
-      - epel-release
       - yum-utils
       - python-pip
   - name: Add Sonarr RPM Key
