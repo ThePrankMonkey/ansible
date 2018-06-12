@@ -1,0 +1,52 @@
+---
+- hosts: lab
+  vars:
+    nagios_ip: "10.0.2.4" # IP of the Nagios server
+  tasks:
+  - name: "CentOS"
+    block:
+    - name: "Install Epel-Release"
+      yum:
+        name: epel-release
+        state: present
+    - name: "Install NRPE and Plugins"
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+      - nrpe
+      - nagios-plugins-all
+    - name: "Configure NRPE"
+      lineinfile:
+        path: /etc/nagios/nrpe.cfg
+        regexp: allowed_hosts
+        line: "allowed_hosts=127.0.0.1,{{ nagios_ip }}"
+    - name: "Start NRPE Service"
+      service:
+        name: nrpe
+        enabled: true
+        state: restarted
+    when:
+    - ansible_distribution == "CentOS"
+  - name: "Debian"
+    block:
+    - name: "Install NRPE and Plugins"
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+      - nagios-plugins
+      - nagios-nrpe-server
+    - name: "Configure NRPE"
+      lineinfile:
+        path: /etc/nagios/nrpe.cfg
+        regexp: allowed_hosts
+        line: "allowed_hosts=127.0.0.1,{{ nagios_ip }}"
+    - name: "Start NRPE Service"
+      service:
+        name: nagios-nrpe-server
+        enabled: true
+        state: restarted
+    when:
+    - ansible_distribution == "Debian"
+#TODO: Add template to nagios server
