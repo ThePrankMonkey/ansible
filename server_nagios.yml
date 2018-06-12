@@ -1,0 +1,259 @@
+---
+# https://www.digitalocean.com/community/tutorials/how-to-install-nagios-4-and-monitor-your-servers-on-centos-7
+- hosts: nagios
+  vars_prompt:
+  - name: "mariapass"
+    prompt: "Password for MariaDB"
+    default: "insecurepass"
+  - name: "nagiospass"
+    prompt: "Password for Nagios"
+    default: "insecurepass"
+  - name: "your_email"
+    prompt: "Email address for notifications"
+    default: "nagios@localhost"
+  vars:
+    do_lamp: false
+    nagios_core_link: "https://assets.nagios.com/downloads/nagioscore/releases/nagios-4.3.4.tar.gz"
+    nagios_core_sum: "15e38467fecf8c42200d1f253e5b7d4d124abec1"
+    nagios_core_path: "/tmp/nagios-core"
+    nagios_plugin_link: "https://nagios-plugins.org/download/nagios-plugins-2.2.1.tar.gz"
+    nagios_plugin_sum: "0d3fc8876343a906f0dcc2c00850e4ad956a150a"
+    nagios_plugin_path: "/tmp/nagios-plugin"
+    nrpe_link: "https://astuteinternet.dl.sourceforge.net/project/nagios/nrpe-2.x/nrpe-2.15/nrpe-2.15.tar.gz"
+    nrpe_sum: "45f434758c547c0af516e8b3324717f8dcd100a3"
+    nrpe_path: "/tmp/nrpe"
+  tasks:
+  - name: "LAMP"
+    block:
+    - name: "LAMP - Apache"
+      block:
+      - name: "Install Apache"
+        yum:
+            name: httpd # required. A package name , or package specifier with version, like C(name-1.0).,If a previous version is specified, the task also needs to turn C(allow_downgrade) on. See the C(allow_downgrade) documentation for caveats with downgrading packages.,When using state=latest, this can be '*' which means run C(yum -y update).,You can also pass a url or a local path to a rpm file (using state=present). To operate on several packages this can accept a comma separated list of packages or (as of 2.0) a list of packages.
+            state: present # not required. choices: absent;installed;latest;present;removed. Whether to install (C(present) or C(installed), C(latest)), or remove (C(absent) or C(removed)) a package.
+      - name: "Start Apache"
+        service:
+            name: httpd # required. Name of the service.
+            enabled: true # not required. Whether the service should start on boot. B(At least one of state and enabled are required.)
+            state: started # not required. choices: reloaded;restarted;running;started;stopped. C(started)/C(stopped) are idempotent actions that will not run commands unless necessary.  C(restarted) will always bounce the service.  C(reloaded) will always reload. B(At least one of state and enabled are required.) Note that reloaded will start the service if it is not already started, even if your chosen init system wouldn't normally.
+    - name: "LAMP - MariaDB"
+      block:
+      - name: "Install MariaDB"
+        yum:
+            name: "{{ item }}" # required. A package name , or package specifier with version, like C(name-1.0).,If a previous version is specified, the task also needs to turn C(allow_downgrade) on. See the C(allow_downgrade) documentation for caveats with downgrading packages.,When using state=latest, this can be '*' which means run C(yum -y update).,You can also pass a url or a local path to a rpm file (using state=present). To operate on several packages this can accept a comma separated list of packages or (as of 2.0) a list of packages.
+            state: present # not required. choices: absent;installed;latest;present;removed. Whether to install (C(present) or C(installed), C(latest)), or remove (C(absent) or C(removed)) a package.
+        with_items:
+        - mariadb-server
+        - mariadb
+      - name: "Start MariaDB"
+        service:
+            name: mariadb # required. Name of the service.
+            enabled: true # not required. Whether the service should start on boot. B(At least one of state and enabled are required.)
+            state: started # not required. choices: reloaded;restarted;running;started;stopped. C(started)/C(stopped) are idempotent actions that will not run commands unless necessary.  C(restarted) will always bounce the service.  C(reloaded) will always reload. B(At least one of state and enabled are required.) Note that reloaded will start the service if it is not already started, even if your chosen init system wouldn't normally.
+      - name: "Configure MariaDB"
+        expect:
+            responses:
+              Enter current password for root:
+                - ""
+                - "{{ mariapass }}"
+              Change the root password: "Y"
+              Set root password: "Y"
+              New password: "{{ mariapass }}"
+              Re-enter new password: "{{ mariapass }}"
+              Remove anonymous users: ""
+              Disallow root login remotely: ""
+              Remove test database and access to it: ""
+              Reload privilege tables now: ""
+            command: mysql_secure_installation # required. The command module takes command to run.
+    - name: "LAMP - PHP"
+      block:
+      - name: "Install PHP"
+        yum:
+            name: "{{ item }}" # required. A package name , or package specifier with version, like C(name-1.0).,If a previous version is specified, the task also needs to turn C(allow_downgrade) on. See the C(allow_downgrade) documentation for caveats with downgrading packages.,When using state=latest, this can be '*' which means run C(yum -y update).,You can also pass a url or a local path to a rpm file (using state=present). To operate on several packages this can accept a comma separated list of packages or (as of 2.0) a list of packages.
+            state: present # not required. choices: absent;installed;latest;present;removed. Whether to install (C(present) or C(installed), C(latest)), or remove (C(absent) or C(removed)) a package.
+        with_items:
+        - php
+        - php-mysql
+      - name: "Restart Apache"
+        service:
+            name: httpd # required. Name of the service.
+            state: restarted # not required. choices: reloaded;restarted;running;started;stopped. C(started)/C(stopped) are idempotent actions that will not run commands unless necessary.  C(restarted) will always bounce the service.  C(reloaded) will always reload. B(At least one of state and enabled are required.) Note that reloaded will start the service if it is not already started, even if your chosen init system wouldn't normally.
+    when:
+    - ansible_distribution == "CentOS"
+    - do_lamp
+  - name: "Nagios"
+    block:
+    - name: "Install Dependencies"
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+      - gcc
+      - glibc
+      - glibc-common
+      - gd
+      - gd-devel
+      - make
+      - net-snmp
+      - openssl-devel
+      - xinetd
+      - unzip
+    - name: "Create Nagios Groups"
+      group:
+        name: "{{ item }}" # required. Name of the group to manage.
+        state: present # not required. choices: absent;present. Whether the group should be present or not on the remote host.
+      with_items:
+      - nagcmd
+      - nagios
+    - name: "Create Nagios User"
+      user:
+          name: nagios # required. Name of the user to create, remove or modify.
+          groups:
+          - nagios
+          - nagcmd
+          state: present # not required. choices: absent;present. Whether the account should exist or not, taking action if the state is different from what is stated.
+          #password: "{{ nagiospass }}" # not required. Optionally set the user's password to this crypted value.  See the user example in the github examples directory for what this looks like in a playbook. See U(http://docs.ansible.com/ansible/faq.html#how-do-i-generate-crypted-passwords-for-the-user-module) for details on various ways to generate these password values. Note on Darwin system, this value has to be cleartext. Beware of security issues.
+    - name: "Nagios Core"
+      block:
+      - name: "Download Nagios Core"
+        get_url:
+            dest: "{{ nagios_core_path }}.tar.gz" # required. Absolute path of where to download the file to.,If C(dest) is a directory, either the server provided filename or, if none provided, the base name of the URL on the remote server will be used. If a directory, C(force) has no effect.,If C(dest) is a directory, the file will always be downloaded (regardless of the C(force) option), but replaced only if the contents changed..
+            url: "{{ nagios_core_link }}" # required. HTTP, HTTPS, or FTP URL in the form (http|https|ftp)://[user[:pass]]@host.domain[:port]/path
+            checksum: "sha1:{{ nagios_core_sum }}" # not required. If a checksum is passed to this parameter, the digest of the destination file will be calculated after it is downloaded to ensure its integrity and verify that the transfer completed successfully. Format: <algorithm>:<checksum>, e.g. checksum="sha256:D98291AC[...]B6DC7B97",If you worry about portability, only the sha1 algorithm is available on all platforms and python versions.,The third party hashlib library can be installed for access to additional algorithms.,Additionally, if a checksum is passed to this parameter, and the file exist under the C(dest) location, the I(destination_checksum) would be calculated, and if checksum equals I(destination_checksum), the file download would be skipped (unless C(force) is true).
+      - name: "Make Nagios Core Directory"
+        file:
+          path: "{{ nagios_core_path }}"
+          state: directory
+      - name: "Extract Nagios Core"
+        unarchive:
+            dest: "{{ nagios_core_path }}" # required. Remote absolute path where the archive should be unpacked.
+            src: "{{ nagios_core_path }}.tar.gz" # required. If C(remote_src=no) (default), local path to archive file to copy to the target server; can be absolute or relative. If C(remote_src=yes), path on the target server to existing archive file to unpack.,If C(remote_src=yes) and C(src) contains C(://), the remote machine will download the file from the URL first. (version_added 2.0). This is only for simple cases, for full download support use the M(get_url) module.
+            remote_src: yes # not required. Set to C(yes) to indicate the archived file is already on the remote system and not local to the Ansible controller.,This option is mutually exclusive with C(copy).
+            extra_opts:
+            - --strip=1
+      - name: "Nagios Installation Commands"
+        shell: "{{ item }}"
+        args:
+          chdir: "{{ nagios_core_path }}"
+        with_items:
+        - ./configure --with-command-group=nagcmd
+        - make all
+        - make install
+        - make install-commandmode
+        - make install-init
+        - make install-config
+        - make install-webconf
+      - name: "Add Apache User to Nagios Group"
+        user:
+          name: apache
+          groups: nagcmd
+      when:
+      - do_lamp
+    - name: "Nagios Plugins"
+      block:
+      - name: "Download Nagios Plugins"
+        get_url:
+            dest: "{{ nagios_plugin_path }}.tar.gz" # required. Absolute path of where to download the file to.,If C(dest) is a directory, either the server provided filename or, if none provided, the base name of the URL on the remote server will be used. If a directory, C(force) has no effect.,If C(dest) is a directory, the file will always be downloaded (regardless of the C(force) option), but replaced only if the contents changed..
+            url: "{{ nagios_plugin_link }}" # required. HTTP, HTTPS, or FTP URL in the form (http|https|ftp)://[user[:pass]]@host.domain[:port]/path
+            checksum: "sha1:{{ nagios_plugin_sum }}" # not required. If a checksum is passed to this parameter, the digest of the destination file will be calculated after it is downloaded to ensure its integrity and verify that the transfer completed successfully. Format: <algorithm>:<checksum>, e.g. checksum="sha256:D98291AC[...]B6DC7B97",If you worry about portability, only the sha1 algorithm is available on all platforms and python versions.,The third party hashlib library can be installed for access to additional algorithms.,Additionally, if a checksum is passed to this parameter, and the file exist under the C(dest) location, the I(destination_checksum) would be calculated, and if checksum equals I(destination_checksum), the file download would be skipped (unless C(force) is true).
+      - name: "Make Nagios Plugin Directory"
+        file:
+          path: "{{ nagios_plugin_path }}"
+          state: directory
+      - name: "Extract Nagios Plugin"
+        unarchive:
+            dest: "{{ nagios_plugin_path }}" # required. Remote absolute path where the archive should be unpacked.
+            src: "{{ nagios_plugin_path }}.tar.gz" # required. If C(remote_src=no) (default), local path to archive file to copy to the target server; can be absolute or relative. If C(remote_src=yes), path on the target server to existing archive file to unpack.,If C(remote_src=yes) and C(src) contains C(://), the remote machine will download the file from the URL first. (version_added 2.0). This is only for simple cases, for full download support use the M(get_url) module.
+            remote_src: yes # not required. Set to C(yes) to indicate the archived file is already on the remote system and not local to the Ansible controller.,This option is mutually exclusive with C(copy).
+            extra_opts:
+            - --strip=1
+      - name: "Nagios Plugin Installation Commands"
+        shell: "{{ item }}"
+        args:
+          chdir: "{{ nagios_plugin_path }}"
+        with_items:
+        - ./configure --with-nagios-user=nagios --with-nagios-group=nagios --with-openssl
+        - make all
+        - make install
+      when:
+      - do_lamp
+    - name: "NRPE"
+      block:
+      - name: "Download NRPE"
+        get_url:
+            dest: "{{ nrpe_path }}.tar.gz" # required. Absolute path of where to download the file to.,If C(dest) is a directory, either the server provided filename or, if none provided, the base name of the URL on the remote server will be used. If a directory, C(force) has no effect.,If C(dest) is a directory, the file will always be downloaded (regardless of the C(force) option), but replaced only if the contents changed..
+            url: "{{ nrpe_link }}" # required. HTTP, HTTPS, or FTP URL in the form (http|https|ftp)://[user[:pass]]@host.domain[:port]/path
+            checksum: "sha1:{{ nrpe_sum }}" # not required. If a checksum is passed to this parameter, the digest of the destination file will be calculated after it is downloaded to ensure its integrity and verify that the transfer completed successfully. Format: <algorithm>:<checksum>, e.g. checksum="sha256:D98291AC[...]B6DC7B97",If you worry about portability, only the sha1 algorithm is available on all platforms and python versions.,The third party hashlib library can be installed for access to additional algorithms.,Additionally, if a checksum is passed to this parameter, and the file exist under the C(dest) location, the I(destination_checksum) would be calculated, and if checksum equals I(destination_checksum), the file download would be skipped (unless C(force) is true).
+      - name: "Make NRPE Directory"
+        file:
+          path: "{{ nrpe_path }}"
+          state: directory
+      - name: "Extract NRPE"
+        unarchive:
+            dest: "{{ nrpe_path }}" # required. Remote absolute path where the archive should be unpacked.
+            src: "{{ nrpe_path }}.tar.gz" # required. If C(remote_src=no) (default), local path to archive file to copy to the target server; can be absolute or relative. If C(remote_src=yes), path on the target server to existing archive file to unpack.,If C(remote_src=yes) and C(src) contains C(://), the remote machine will download the file from the URL first. (version_added 2.0). This is only for simple cases, for full download support use the M(get_url) module.
+            remote_src: yes # not required. Set to C(yes) to indicate the archived file is already on the remote system and not local to the Ansible controller.,This option is mutually exclusive with C(copy).
+            extra_opts:
+            - --strip=1
+      - name: "NRPE Installation Commands"
+        shell: "{{ item }}"
+        args:
+          chdir: "{{ nrpe_path }}"
+        with_items:
+        - ./configure --enable-command-args --with-nagios-user=nagios --with-nagios-group=nagios --with-ssl=/usr/bin/openssl --with-ssl-lib=/usr/lib/x86_64-linux-gnu
+        - make all
+        - make install
+        - make install-xinetd
+        - make install-daemon-config
+      - name: "Modify Xinet Config"
+        lineinfile:
+            path: /etc/xinetd.d/nrpe # required. The file to modify.,Before 2.3 this option was only usable as I(dest), I(destfile) and I(name).
+            regexp: only_from       = 127.0.0.1 # not required. The regular expression to look for in every line of the file. For C(state=present), the pattern to replace if found. Only the last line found will be replaced. For C(state=absent), the pattern of the line(s) to remove. Uses Python regular expressions. See U(http://docs.python.org/2/library/re.html).
+            line: "        only_from       = 127.0.0.1 {{ ansible_dns.nameservers[0] }}" # not required. Required for C(state=present). The line to insert/replace into the file. If C(backrefs) is set, may contain backreferences that will get expanded with the C(regexp) capture groups if the regexp matches.
+      - name: "Start Xinet"
+        service:
+          name: xinetd
+          enabled: true
+          state: restarted
+    - name: "Configure Nagios"
+      block:
+      - name: "Edit nagios.cfg"
+        lineinfile:
+          path: /usr/local/nagios/etc/nagios.cfg
+          regexp: cfg_dir=/usr/local/nagios/etc/servers
+          line: cfg_dir=/usr/local/nagios/etc/servers
+      - name: "Edit contacts.cfg"
+        lineinfile:
+          path: /usr/local/nagios/etc/objects/contacts.cfg
+          regexp: email
+          line: "email {{ your_email }}"
+      - name: "Edit commands.cfg"
+        lineinfile:
+          path: /usr/local/nagios/etc/objects/commands.cfg
+          insertafter: EOF
+          line: |
+            define command{
+              command_name check_nrpe
+              command_line $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+            }
+    - name: "Configure Apache"
+      htpasswd:
+          path: /usr/local/nagios/etc/htpasswd.users # required. Path to the file that contains the usernames and passwords
+          name: nagiosadmin # required. User name to add or remove
+          password: "{{ nagiospass }}" # not required. Password associated with user.,Must be specified if user does not exist yet.
+          create: yes # not required. choices: yes;no. Used with C(state=present). If specified, the file will be created if it does not already exist. If set to "no", will fail if the file does not exist
+          state: present # not required. choices: present;absent. Whether the user entry should be present or not
+    - name: "Reload Systemd Daemon"
+      systemd:
+        daemon_reload: yes
+    - name: "Restart Services"
+      service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+      with_items:
+      - nagios
+      - httpd
+  - name: "Nagios Address"
+    debug:
+      msg: "Your site is at: http://{{ ansible_dns.nameservers[0] }}/nagios"
