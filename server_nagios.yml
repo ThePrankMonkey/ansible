@@ -100,6 +100,13 @@
       - openssl-devel
       - xinetd
       - unzip
+      - python-pip
+    - name: "Pip Install Pexpect"
+      pip:
+        name: pexpect
+      with_items:
+      - passlib
+      - pexpect>=3.3
     - name: "Create Nagios Groups"
       group:
         name: "{{ item }}" # required. Name of the group to manage.
@@ -248,9 +255,6 @@
               command_name check_service
               command_line $USER1$/check_service -o $ARG1$ -s $ARG2$
             }
-    - name: Install latest passlib with pip
-      pip:
-        name: passlib
     - name: "Configure Apache"
       htpasswd:
         path: /usr/local/nagios/etc/htpasswd.users # required. Path to the file that contains the usernames and passwords
