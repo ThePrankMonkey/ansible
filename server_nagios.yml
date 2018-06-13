@@ -1,5 +1,6 @@
 ---
 # https://www.digitalocean.com/community/tutorials/how-to-install-nagios-4-and-monitor-your-servers-on-centos-7
+#TODO: confirm passwords.
 - hosts: nagios
   vars_prompt:
   - name: "mariapass"
@@ -11,8 +12,8 @@
   - name: "your_email"
     prompt: "Email address for notifications"
     default: "nagios@localhost"
+    private: no
   vars:
-    do_lamp: false
     nagios_core_link: "https://assets.nagios.com/downloads/nagioscore/releases/nagios-4.3.4.tar.gz"
     nagios_core_sum: "15e38467fecf8c42200d1f253e5b7d4d124abec1"
     nagios_core_path: "/tmp/nagios-core"
@@ -22,6 +23,8 @@
     nrpe_link: "https://astuteinternet.dl.sourceforge.net/project/nagios/nrpe-2.x/nrpe-2.15/nrpe-2.15.tar.gz"
     nrpe_sum: "45f434758c547c0af516e8b3324717f8dcd100a3"
     nrpe_path: "/tmp/nrpe"
+    check_service_link: "https://raw.githubusercontent.com/jonschipp/nagios-plugins/master/check_service.sh"
+    check_service_sum: "9c61a7f7ec4184d36e978865d7edf856c69d1d22"
   tasks:
   - name: "LAMP"
     block:
@@ -80,7 +83,6 @@
             state: restarted # not required. choices: reloaded;restarted;running;started;stopped. C(started)/C(stopped) are idempotent actions that will not run commands unless necessary.  C(restarted) will always bounce the service.  C(reloaded) will always reload. B(At least one of state and enabled are required.) Note that reloaded will start the service if it is not already started, even if your chosen init system wouldn't normally.
     when:
     - ansible_distribution == "CentOS"
-    - do_lamp
   - name: "Nagios"
     block:
     - name: "Install Dependencies"
@@ -147,8 +149,6 @@
         user:
           name: apache
           groups: nagcmd
-      when:
-      - do_lamp
     - name: "Nagios Plugins"
       block:
       - name: "Download Nagios Plugins"
@@ -175,8 +175,6 @@
         - ./configure --with-nagios-user=nagios --with-nagios-group=nagios --with-openssl
         - make all
         - make install
-      when:
-      - do_lamp
     - name: "NRPE"
       block:
       - name: "Download NRPE"
@@ -222,11 +220,21 @@
           path: /usr/local/nagios/etc/nagios.cfg
           regexp: cfg_dir=/usr/local/nagios/etc/servers
           line: cfg_dir=/usr/local/nagios/etc/servers
+      - name: "Make Servers Diretory"
+        file:
+            path: /usr/local/nagios/etc/servers # required. path to the file being managed.  Aliases: I(dest), I(name)
+            state: directory # not required. choices: absent;directory;file;hard;link;touch. If C(directory), all immediate subdirectories will be created if they do not exist, since 1.7 they will be created with the supplied permissions. If C(file), the file will NOT be created if it does not exist, see the M(copy) or M(template) module if you want that behavior.  If C(link), the symbolic link will be created or changed. Use C(hard) for hardlinks. If C(absent), directories will be recursively deleted, and files or symlinks will be unlinked. Note that C(absent) will not cause C(file) to fail if the C(path) does not exist as the state did not change. If C(touch) (new in 1.4), an empty file will be created if the C(path) does not exist, while an existing file or directory will receive updated file access and modification times (similar to the way `touch` works from the command line).
       - name: "Edit contacts.cfg"
         lineinfile:
           path: /usr/local/nagios/etc/objects/contacts.cfg
           regexp: email
           line: "email {{ your_email }}"
+      - name: "Grab check_service plugin"
+        get_url:
+            dest: /usr/local/nagios/libexec/check_service # required. Absolute path of where to download the file to.,If C(dest) is a directory, either the server provided filename or, if none provided, the base name of the URL on the remote server will be used. If a directory, C(force) has no effect.,If C(dest) is a directory, the file will always be downloaded (regardless of the C(force) option), but replaced only if the contents changed..
+            url: "{{ check_service_link }}" # required. HTTP, HTTPS, or FTP URL in the form (http|https|ftp)://[user[:pass]]@host.domain[:port]/path
+            mode: 0755 # not required. Mode the file or directory should be. For those used to I(/usr/bin/chmod) remember that modes are actually octal numbers (like C(0644) or C(01777)). Leaving off the leading zero will likely have unexpected results. As of version 1.8, the mode may be specified as a symbolic mode (for example, C(u+rwx) or C(u=rw,g=r,o=r)).
+            checksum: "sha1:{{ check_service_sum }}"
       - name: "Edit commands.cfg"
         lineinfile:
           path: /usr/local/nagios/etc/objects/commands.cfg
@@ -236,13 +244,20 @@
               command_name check_nrpe
               command_line $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
             }
+            define command{
+              command_name check_service
+              command_line $USER1$/check_service -o $ARG1$ -s $ARG2$
+            }
+    - name: Install latest passlib with pip
+      pip:
+        name: passlib
     - name: "Configure Apache"
       htpasswd:
-          path: /usr/local/nagios/etc/htpasswd.users # required. Path to the file that contains the usernames and passwords
-          name: nagiosadmin # required. User name to add or remove
-          password: "{{ nagiospass }}" # not required. Password associated with user.,Must be specified if user does not exist yet.
-          create: yes # not required. choices: yes;no. Used with C(state=present). If specified, the file will be created if it does not already exist. If set to "no", will fail if the file does not exist
-          state: present # not required. choices: present;absent. Whether the user entry should be present or not
+        path: /usr/local/nagios/etc/htpasswd.users # required. Path to the file that contains the usernames and passwords
+        name: nagiosadmin # required. User name to add or remove
+        password: "{{ nagiospass }}" # not required. Password associated with user.,Must be specified if user does not exist yet.
+        create: yes # not required. choices: yes;no. Used with C(state=present). If specified, the file will be created if it does not already exist. If set to "no", will fail if the file does not exist
+        state: present # not required. choices: present;absent. Whether the user entry should be present or not
     - name: "Reload Systemd Daemon"
       systemd:
         daemon_reload: yes
@@ -254,6 +269,12 @@
       with_items:
       - nagios
       - httpd
+  - name: "Open Firewall"
+    firewalld:
+      state: enabled # required. choices: enabled;disabled;present;absent. Enable or disable a setting. For ports: Should this port accept(enabled) or reject(disabled) connections. The states "present" and "absent" can only be used in zone level operations (i.e. when no other parameters but zone and state are set).
+      immediate: true
+      permanent: true # not required. Should this configuration be in the running firewalld configuration or persist across reboots. As of Ansible version 2.3, permanent operations can operate on firewalld configs when it's not running (requires firewalld >= 3.0.9). (NOTE: If this is false, immediate is assumed true.)
+      service: http # not required. Name of a service to add/remove to/from firewalld - service must be listed in output of firewall-cmd --get-services.
   - name: "Nagios Address"
     debug:
-      msg: "Your site is at: http://{{ ansible_dns.nameservers[0] }}/nagios"
+      msg: "Your site is at: http://{{ ansible_dns.nameservers[0] }}/nagios, Username: nagiosadmin"
