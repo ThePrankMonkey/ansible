@@ -1,7 +1,8 @@
 ---
-- hosts: lab
+- hosts: linux:!localhost
   vars:
     nagios_ip: "10.0.2.4" # IP of the Nagios server
+    nagios_name: "nagios" # name of nagios server in ansible hosts
   tasks:
   - name: "CentOS"
     block:
@@ -26,6 +27,54 @@
         name: nrpe
         enabled: true
         state: restarted
+    - name: "Create Host Config"
+      copy:
+          dest: "/tmp/{{ ansible_hostname }}.cfg" # required. Remote absolute path where the file should be copied to. If I(src) is a directory, this must be a directory too. If I(dest) is a nonexistent path and if either I(dest) ends with "/" or I(src) is a directory, I(dest) is created. If I(src) and I(dest) are files, the parent directory of I(dest) isn't created: the task fails if it doesn't already exist.
+          content: |
+            define host {
+              use                             linux-server
+              host_name                       {{ ansible_hostname }}
+              alias                           ChangeMeThenReload
+              address                         {{ ansible_dns.nameservers[0] }}
+              max_check_attempts              5
+              check_period                    24x7
+              notification_interval           30
+              notification_period             24x7
+            }
+            define service {
+              use                             generic-service
+              host_name                       {{ ansible_hostname }}
+              service_description             PING
+              check_command                   check_ping!100.0,20%!500.0,60%
+            }
+            define service {
+              use                             generic-service
+              host_name                       {{ ansible_hostname }}
+              service_description             SSH
+              check_command                   check_ssh
+              notifications_enabled           0
+            }
+            define service {
+              use                             generic-service
+              host_name                       {{ ansible_hostname }}
+              service_description             Network
+              check_command                   check_service!linux!network
+              notifications_enabled           0
+            }
+    - name: "Move Host Config to Nagios Server"
+      synchronize:
+        src: "/tmp/{{ ansible_hostname }}.cfg" # required. The file on the remote system to fetch. This I(must) be a file, not a directory. Recursive fetching may be supported in a later release.
+        dest: "/usr/local/nagios/etc/servers/{{ ansible_hostname }}.cfg" # required. A directory to save the file into. For example, if the I(dest) directory is C(/backup) a I(src) file named C(/etc/profile) on host C(host.example.com), would be saved into C(/backup/host.example.com/etc/profile)
+        mode: pull
+      delegate_to: "{{ nagios_name }}"
+      when:
+      - nagios_name != "localhost"
+    - name: "Move Host Config to Localhost"
+      fetch:
+        src: "/tmp/{{ ansible_hostname }}.cfg" # required. The file on the remote system to fetch. This I(must) be a file, not a directory. Recursive fetching may be supported in a later release.
+        dest: "/usr/local/nagios/etc/servers/{{ ansible_hostname }}.cfg" # required. A directory to save the file into. For example, if the I(dest) directory is C(/backup) a I(src) file named C(/etc/profile) on host C(host.example.com), would be saved into C(/backup/host.example.com/etc/profile)
+      when:
+      - nagios_name == "localhost"
     when:
     - ansible_distribution == "CentOS"
   - name: "Debian"
@@ -49,4 +98,7 @@
         state: restarted
     when:
     - ansible_distribution == "Debian"
-#TODO: Add template to nagios server
+  - name: "Reminder to Reload"
+    debug:
+      msg: "Don't forget to reload the Nagios service: systemctl reload nagios"
+    run_once: true
