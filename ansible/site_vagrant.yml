@@ -1,0 +1,6 @@
+---
+- name: Fix Ansible
+  hosts: localhost
+  roles:
+  - {name: base, become: yes}
+  - {name: vagrant_role, become: yes}

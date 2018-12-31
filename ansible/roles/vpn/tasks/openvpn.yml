@@ -1,0 +1,64 @@
+---
+# tasks file for vpn :: openvpn
+###################
+# Install OpenVPN #
+###################
+- name: Install OpenVPN
+  yum:
+    name: openvpn
+    state: present
+  notify: restart_openvpn
+- name: Find Starter Configuration
+  find:
+    paths: /usr/share/doc/
+    patterns: "openvpn-*"
+    file_type: directory
+  register: starter
+- name: Find Configuration
+  stat:
+    path: /etc/openvpn/server.conf
+  register: plain
+- name: Copy over Starter Configuration
+  copy:
+    src: "{{ starter.files[0].path }}/sample/sample-config-files/server.conf"
+    dest: /etc/openvpn
+    remote_src: yes
+  when: not plain.stat.exists
+#########################
+# Configure Server.conf #
+#########################
+- name: Edit server.conf
+  lineinfile:
+    path: /etc/openvpn/server.conf
+    regexp: "{{ item.reg }}"
+    line: "{{ item.line }}"
+  with_items:
+  - reg: '^dh dh(|2048).pem'
+    line: 'dh dh.pem'
+  - reg: ';?push "redirect-gateway def1 bypass-dhcp"'
+    line: 'push "redirect-gateway def1 bypass-dhcp"'
+  - reg: ';?push "dhcp-option DNS'
+    line: 'push "dhcp-option DNS {{ dns1 }}"'
+#   - reg: ';?push "dhcp-option DNS'
+#     line: 'push "dhcp-option DNS {{ dns2 }}"'
+  - reg: ';?user nobody'
+    line: 'user nobody'
+  - reg: ';?group nobody'
+    line: 'group nobody'
+  - reg: ';?topology subnet'
+    line: 'topology subnet'
+  - reg: ';?tls-auth ta.key 0'
+    line: ';tls-auth ta.key 0'
+- name: Edit server.conf - tls
+  lineinfile:
+    path: /etc/openvpn/server.conf
+    line: 'tls-crypt myvpn.tlsauth'
+    insertafter: ';?tls-auth ta.key 0'
+###################
+# Generate ta.key #
+###################
+- name: Create tls.auth
+  command: openvpn --genkey --secret myvpn.tlsauth
+  args:
+    chdir: /etc/openvpn
+    creates: /etc/openvpn/myvpn.tlsauth

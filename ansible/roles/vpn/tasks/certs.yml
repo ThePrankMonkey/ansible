@@ -1,0 +1,124 @@
+---
+# tasks file for vpn :: certs
+- name: Install Easy-RSA
+  yum:
+    name: easy-rsa
+    state: present
+##################
+# Build out PKIs #
+##################
+# https://ask.fedoraproject.org/en/question/99889/easy_rsa-vars-file-missing/
+- name: Running ./easyrsa init-pki
+  shell: ./easyrsa init-pki
+  args:
+    chdir: /usr/share/easy-rsa/3
+    creates: /usr/share/easy-rsa/3/pki
+- name: Build CA cert
+  expect:
+    chdir: /usr/share/easy-rsa/3
+    creates: /usr/share/easy-rsa/3/pki/ca.crt
+    command: ./easyrsa build-ca
+    responses:
+      'Enter PEM pass phrase':
+        - "{{ secrets.easyrsa.ca }}"
+        - "{{ secrets.easyrsa.ca }}"
+      'Common Name': "{{ key.cn }}"
+- name: Build Server Full
+  expect:
+    chdir: /usr/share/easy-rsa/3
+    creates: "/usr/share/easy-rsa/3/pki/reqs/{{ key.server }}.req"
+    command: ./easyrsa build-server-full "{{ key.server }}"
+    responses:
+      'Enter PEM':
+        - "{{ secrets.easyrsa.server }}"
+        - "{{ secrets.easyrsa.server }}"
+      'Enter pass': "{{ secrets.easyrsa.ca }}"
+- name: Build Client Full
+  expect:
+    chdir: /usr/share/easy-rsa/3
+    creates: "/usr/share/easy-rsa/3/pki/reqs/{{ key.client }}.req"
+    command: ./easyrsa build-client-full "{{ key.client }}"
+    responses:
+      'Enter PEM':
+        - "{{ secrets.easyrsa.client }}"
+        - "{{ secrets.easyrsa.client }}"
+      'Enter pass': "{{ secrets.easyrsa.ca }}"
+- name: Build Diffie-Hellman Cert
+  command: ./easyrsa gen-dh
+  args:
+    chdir: /usr/share/easy-rsa/3
+    creates: /usr/share/easy-rsa/3/pki/dh.pem
+########################
+# Generate OpenVPN key #
+########################
+- name: Copy certs to OpenVPN
+  copy:
+    src: "{{ item }}"
+    dest: /etc/openvpn/
+    remote_src: yes
+  with_items:
+    - "/usr/share/easy-rsa/3/pki/ca.crt"
+    - "/usr/share/easy-rsa/3/pki/dh.pem"
+    - "/usr/share/easy-rsa/3/pki/issued/{{ key.server }}.crt"
+    - "/usr/share/easy-rsa/3/pki/private/{{ key.server }}.key"
+    - "/usr/share/easy-rsa/3/pki/issued/{{ key.client }}.crt"
+    - "/usr/share/easy-rsa/3/pki/private/{{ key.client }}.key"
+# - name: Make folder for key
+#   file:
+#     path: /etc/openvpn/easy-rsa/{{ item }}
+#     state: directory
+#   with_items:
+#     - "x509-types"
+#     - "keys"
+# - name: Copy keys over 1/2
+#   copy:
+#     src: "/usr/share/easy-rsa/3/{{ item.path }}"
+#     dest: /etc/openvpn/easy-rsa/{{ item.path }}
+#     remote_src: yes
+#   with_filetree:
+#     - "/usr/share/easy-rsa/3/"
+#   when:
+#     item.state == 'file'
+- name: Copy Conf to OpenVPN
+  copy:
+    src: /usr/share/easy-rsa/3/openssl-1.0.cnf
+    dest: /etc/openvpn/openssl.cnf
+    remote_src: yes
+###########################
+# Configure Key Variables #
+###########################
+# - name: Set Variables - Country - 1/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_COUNTRY	"
+#     line: '	set_var EASYRSA_REQ_COUNTRY	"{{ key.country }}"'
+# - name: Set Variables - Province - 2/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_PROVINCE	"
+#     line: '	set_var EASYRSA_REQ_PROVINCE	"{{ key.province }}"'
+# - name: Set Variables - City - 3/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_CITY	"
+#     line: '	set_var EASYRSA_REQ_CITY	"{{ key.city }}"'
+# - name: Set Variables - Organization - 4/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_ORG	"
+#     line: '	set_var EASYRSA_REQ_ORG		"{{ key.org }}"'
+# - name: Set Variables - Email - 5/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_EMAIL	"
+#     line: '	set_var EASYRSA_REQ_EMAIL	"{{ key.email }}"'
+# - name: Set Variables - OU - 6/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_OU	"
+#     line: '	set_var EASYRSA_REQ_OU		"{{ key.ou }}"'
+# - name: Set Variables - Common Name - 7/7
+#   lineinfile:
+#     path: /etc/openvpn/easy-rsa/easyrsa/vars
+#     regexp: "	set_var EASYRSA_REQ_CN	"
+#     line: '	set_var EASYRSA_REQ_CN		"{{ key.cn }}"'

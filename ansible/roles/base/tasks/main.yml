@@ -1,0 +1,29 @@
+---
+# tasks file for base
+- name: Import secrets
+  include_vars:
+      file: ../../secrets/secrets.yml # not required. The file name from which variables should be loaded.,If the path is relative, it will look for the file in vars/ subdirectory of a role or relative to playbook.
+      name: secrets # not required. The name of a variable into which assign the included vars. If omitted (null) they will be made top level vars.
+- name: Install Epel Release
+  yum:
+    name: "epel-release"
+    state: present
+- name: Install Pip
+  yum:
+    name: "python-pip"
+    state: present
+- name: Install PExpect Module
+  pip:
+    name: pexpect
+    state: present
+- name: Enable and Start FirewallD
+  service:
+    name: firewalld
+    state: started
+    enabled: yes
+- name: Install Extra Things
+  yum:
+    name:
+    - tree
+    - nano
+    state: present

@@ -1,0 +1,25 @@
+---
+# tasks file for vagrant_role
+# Fix Ansible for Vagrant
+- block:
+  - name: Stop Host checking
+    lineinfile:
+      path: /etc/ansible/ansible.cfg
+      regexp: '^#?host_key_checking = False'
+      line: 'host_key_checking = False'
+  - name: Set SSH arguments
+    lineinfile:
+      path: /etc/ansible/ansible.cfg
+      regexp: '^#?ssh_args = '
+      line: 'ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes'
+  - name: Turn on callbacks
+    lineinfile:
+      path: /etc/ansible/ansible.cfg
+      regexp: '^#callback_whitelist ='
+      line: 'callback_whitelist = profile_tasks'
+  become: true
+- name: Install pywinrm
+  pip:
+    name: pywinrm
+    state: present
+- ping:

@@ -1,0 +1,15 @@
+---
+# vars file for vpn
+dns1: "8.8.8.8"
+dns2: "4.4.2.2"
+key:
+  country: "US"
+  province: "VA"
+  city: "Herndon"
+  org: "TestLab"
+  email: "admin@test.local"
+  ou: "test"
+  name: "server"
+  cn: "admin.test.local"
+  server: "server"
+  client: "client"

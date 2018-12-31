@@ -1,0 +1,33 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+required_plugins = %w( vagrant-vbguest )
+required_plugins.each do |plugin|
+  system "vagrant plugin install #{plugin}" unless Vagrant.has_plugin? plugin
+end
+
+Vagrant.configure('2') do |config|
+  config.vm.box = 'centos/7'
+  config.vm.box_version = '1811.02'
+  config.vm.hostname = 'target'
+  config.vm.network 'private_network', ip: '10.250.0.11'
+
+  config.vm.provider 'virtualbox' do |vb|
+    vb.name = 'target'
+  end
+
+  public_key = File.read('../../ansible/secrets/ssh-keys/id_rsa.pub')
+
+  config.vm.provision 'shell', inline: <<-SHELL
+    # Handle VM Configuration
+    echo 'Configure SSH Key'
+    mkdir -p /home/vagrant/.ssh
+    chmod 700 /home/vagrant/.ssh
+    echo "#{public_key}" >> /home/vagrant/.ssh/authorized_keys
+    chmod 0600 /home/vagrant/.ssh/authorized_keys
+    echo 'Host 10.250.*.*' >> /home/vagrant/.ssh/config
+    echo 'StrictHostKeyChecking no' >> /home/vagrant/.ssh/config
+    echo 'UserKnownHostsFile /dev/null' >> /home/vagrant/.ssh/config
+    chmod -R 600 /home/vagrant/.ssh/config
+  SHELL
+end

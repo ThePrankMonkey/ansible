@@ -1,0 +1,23 @@
+---
+# tasks file for vpn :: client
+- name: Get Content of ca.crt
+  slurp:
+    src: /etc/openvpn/ca.crt
+  register: cacrt
+- name: Get Content of client.crt
+  slurp:
+    src: /etc/openvpn/client.crt
+  register: clientcrt
+- name: Get Content of client.key
+  slurp:
+    src: /etc/openvpn/client.key
+  register: clientkey
+- name: Create Client.conf
+  template:
+    dest: /etc/openvpn/client.conf
+    src: ../templates/client.conf.j2
+- name: Grab client.conf
+  fetch:
+    src: /etc/openvpn/client.conf
+    dest: ~/ansible/secrets/
+    flat: yes

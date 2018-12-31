@@ -1,0 +1,25 @@
+client 
+dev tun 
+resolv-retry infinite 
+nobind 
+persist-key 
+persist-tun 
+auth-user-pass 
+auth-nocache 
+tun-mtu 1500 
+tun-mtu-extra 32 
+remote-cert-tls server 
+cipher AES-256-CBC 
+auth SHA384 
+server-poll-timeout 3 
+proto udp 
+remote {{ secrets.noip.hostname }} 1194 
+sndbuf 0 
+rcvbuf 0 
+
+<ca> 
+{{ cacrt['content'] | b64decode }}</ca> 
+<cert> 
+{{ clientcrt['content'] | b64decode }}</cert> 
+<key> 
+{{ clientkey['content'] | b64decode }}</key> 

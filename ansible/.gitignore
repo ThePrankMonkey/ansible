@@ -1,0 +1,3 @@
+secrets/*
+!secrets/ssh-keys
+!secrets/dummy.*

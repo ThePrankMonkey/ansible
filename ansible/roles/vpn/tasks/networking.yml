@@ -1,0 +1,15 @@
+---
+# tasks file for vpn :: networking
+- name: Add OpenVPN service to Firewall
+  firewalld:
+    service: openvpn
+    permanent: yes
+    immediate: yes
+    state: enabled
+    # zone: trusted
+- name: Set up masquerade on Firewall
+  firewalld:
+    masquerade: yes
+    state: enabled
+    permanent: yes
+    immediate: yes

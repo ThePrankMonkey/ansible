@@ -1,0 +1,50 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+required_plugins = %w( vagrant-vbguest )
+required_plugins.each do |plugin|
+  system "vagrant plugin install #{plugin}" unless Vagrant.has_plugin? plugin
+end
+
+Vagrant.configure('2') do |config|
+  config.vm.box = 'centos/7'
+  config.vm.box_version = '1811.02'
+
+  private_key = File.read('../../ansible/secrets/ssh-keys/id_rsa')
+  public_key = File.read('../../ansible/secrets/ssh-keys/id_rsa.pub')
+
+  config.vm.define 'ansible', primary: true do |machine|
+    machine.vm.hostname = 'workstation'
+
+    machine.vm.network 'private_network', ip: '10.250.0.10'
+
+    machine.vm.synced_folder '../../ansible/', '/home/vagrant/ansible', create: true, SharedFoldersEnableSymlinksCreate: false
+
+    machine.vm.provider 'virtualbox' do |vb|
+      vb.name = 'workstation'
+    end
+
+    machine.vm.provision 'shell', inline: <<-SHELL
+      # Handle VM Configuration
+      echo 'Configure SSH Key'
+      mkdir -p /home/vagrant/.ssh
+      chmod 0700 /home/vagrant/.ssh
+      echo '#{public_key}' >> /home/vagrant/.ssh/authorized_keys
+      chmod -R 600 /home/vagrant/.ssh/authorized_keys
+      echo "#{private_key}" >> /home/vagrant/.ssh/id_rsa
+      chmod 0600 /home/vagrant/.ssh/id_rsa
+      echo 'Host 172.24.*.*' >> /home/vagrant/.ssh/config
+      echo 'StrictHostKeyChecking no' >> /home/vagrant/.ssh/config
+      echo 'UserKnownHostsFile /dev/null' >> /home/vagrant/.ssh/config
+      chmod -R 600 /home/vagrant/.ssh/config
+      sudo chown -R vagrant /home/vagrant/.ssh
+    SHELL
+
+    machine.vm.provision :ansible_local do |ansible|
+      ansible.playbook       = '/home/vagrant/ansible/site_vagrant.yml'
+      ansible.verbose        = false
+      ansible.install        = true
+      ansible.limit          = 'all' # or only "nodes" group, etc.
+      ansible.inventory_path = '/home/vagrant/ansible/inv_vagrant'
+    end
+  end
+end

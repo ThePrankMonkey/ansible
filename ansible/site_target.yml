@@ -1,0 +1,6 @@
+---
+- name: Configure Target
+  hosts: target
+  roles:
+  - {name: base, become: yes}
+  - {name: vpn, become: yes}

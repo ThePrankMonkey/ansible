@@ -1,0 +1,18 @@
+---
+# tasks file for vpn :: noip
+- name: Install NoIP
+  yum:
+    name: noip
+    state: present
+- name: Configure NoIP
+  expect:
+    command: noip2 -C
+    responses: 
+      'Please select the Internet interface from this list': '0'
+      'Please enter the login/email string for no-ip.com': "{{ secrets.noip.username }}"
+      'Please enter the password for user': "{{ secrets.noip.password }}"
+      'Do you wish to have them all updated': 'y'
+      'Please enter an update interval': '30'
+      'Do you wish to run something at successful update': 'N'
+    creates: /etc/no-ip2.conf
+    echo: true
