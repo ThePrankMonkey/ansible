@@ -11,7 +11,38 @@ Any pre-requisites that may not be covered by Ansible itself or the role should 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+Regular:
+
+```yml
+---
+dns1: "8.8.8.8"
+dns2: "4.4.2.2"
+key:
+  country: "US"
+  province: "VA"
+  city: "Herndon"
+  org: "TestLab"
+  email: "admin@test.local"
+  ou: "test"
+  name: "server"
+  cn: "admin.test.local"
+  server: "server"
+  client: "client"
+```
+
+Secret:
+
+```yml
+---
+noip: # Credentials for NoIP Dynamic DNS
+  username: #STRING
+  password: #STRING
+  hostname: #STRING
+easyrsa: # Passphrase for easy-rsa keys
+  ca: #STRING
+  server: #STRING
+  client: #STRING
+```
 
 Dependencies
 ------------
