@@ -14,8 +14,10 @@
     state: present
 - name: Install PExpect Module
   pip:
-    name: pexpect
-    state: present
+    name:
+    - pexpect
+    - pip
+    state: latest
 - name: Enable and Start FirewallD
   service:
     name: firewalld
@@ -27,3 +29,7 @@
     - tree
     - nano
     state: present
+- name: Update everything
+  yum:
+    name: "*"
+    state: latest
