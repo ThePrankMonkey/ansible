@@ -1,0 +1,35 @@
+---
+# tasks file for sabnzbd :: install
+- debug:
+    msg:
+      - =============================
+      - ==                         ==
+      - ==   sabnzbbd -- install   ==
+      - ==                         ==
+      - =============================
+- name: Create installation location
+  file:
+    path: "{{ sab_path }}"
+    state: directory
+- name: Clone SabNZBd Master
+  git:
+    repo: "{{ sab_link }}"
+    dest: "{{ sab_path }}"
+    depth: 1
+    clone: no
+- name: Add language files
+  command: python tools/make_mo.py
+  args:
+    chdir: "{{ sab_path }}"
+    creates: "{{ sab_path }}/locale"
+- name: Create usenet User
+  user:
+    name: usenet
+    state: present
+    shell: /sbin/nologin
+- name: Set SabNZBd file Owner
+  file:
+    recurse: yes
+    path: "{{ sab_path }}"
+    owner: usenet
+    group: usenet

@@ -1,0 +1,5 @@
+---
+# vars file for sabnzbd
+unrar_link: "https://forensics.cert.org/centos/cert/7/x86_64//unrar-5.3.0-1.el7.x86_64.rpm"
+sab_link: "https://github.com/sabnzbd/sabnzbd"
+sab_path: "/opt/sabnzbd"

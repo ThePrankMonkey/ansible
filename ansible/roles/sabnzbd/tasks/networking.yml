@@ -1,0 +1,25 @@
+---
+# tasks file for sabnzbd :: networking
+- debug:
+    msg:
+      - =============================
+      - ==                         ==
+      - ==   sabnzbbd -- network   ==
+      - ==                         ==
+      - =============================
+- name: Create sabnzbd Network Service
+  copy:
+    dest: /etc/firewalld/services/sabnzbd.xml
+    src: ../files/sabnzbd.xml
+  register: sab_network_service
+- name: Reload FirewallD for New Service
+  service:
+    name: firewalld
+    state: reloaded
+  when: sab_network_service.changed
+- name: Add sabnzbd to Firewall
+  firewalld:
+    service: sabnzbd
+    immediate: yes
+    permanent: yes
+    state: enabled

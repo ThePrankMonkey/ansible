@@ -1,0 +1,7 @@
+---
+# handlers file for sabnzbd
+- name: start_sabnzd
+  service:
+    name: sabnzbd
+    enabled: yes
+    state: restarted

@@ -1,0 +1,14 @@
+---
+# tasks file for sabnzbd :: service
+- debug:
+    msg:
+      - =============================
+      - ==                         ==
+      - ==   sabnzbbd -- service   ==
+      - ==                         ==
+      - =============================
+- name: Create sabnzbd.service
+  template:
+    dest: /etc/systemd/system/sabnzbd.service
+    src: ../templates/sabnzbd.service.j2
+  notify: start_sabnzd

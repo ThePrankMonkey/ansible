@@ -1,0 +1,6 @@
+---
+# tasks file for sabnzbd
+- include_tasks: prereqs.yml
+- include_tasks: install.yml
+- include_tasks: service.yml
+- include_tasks: networking.yml

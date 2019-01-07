@@ -1,0 +1,25 @@
+---
+# tasks file for sabnzbd :: prereqs
+- debug:
+    msg:
+      - =============================
+      - ==                         ==
+      - ==   sabnzbbd -- prereqs   ==
+      - ==                         ==
+      - =============================
+- name: Install Prereqs
+  yum:
+    name:
+    - git
+    - par2cmdline
+    - python-cheetah
+    state: present
+- name: Install Pip Modules
+  pip:
+    name:
+    - sabyenc
+    - yenc
+- name: Install UnRar
+  yum:
+    name: "{{ unrar_link }}"
+    state: present
