@@ -11,6 +11,18 @@
   yum:
     name: epel-release
     state: present
+- name: Import Mono Repo Key
+  rpm_key:
+    key: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+    state: present
+- name: Add Mono Repo
+  yum_repository:
+    name: mono-centos7-stable
+    file: mono-centos7-stable
+    baseurl: https://download.mono-project.com/repo/centos7-stable/
+    enabled: yes
+    gpgcheck: yes
+    gpgkey: https://download.mono-project.com/repo/xamarin.gpg
 - name: Install additional packages
   yum:
     name:
