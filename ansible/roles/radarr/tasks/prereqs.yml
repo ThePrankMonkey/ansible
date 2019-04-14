@@ -1,0 +1,32 @@
+---
+# tasks file for radarr :: prereqs
+- debug:
+    msg:
+    - "###########################"
+    - "##                       ##"
+    - "##   radarr -- prereqs   ##"
+    - "##                       ##"
+    - "###########################"
+- name: Install initial packages
+  yum:
+    name: epel-release
+    state: present
+- name: Install additional packages
+  yum:
+    name:
+      - mediainfo
+      - curl
+      - mono-core
+      - mono-devel
+      - mono-locale-extras
+    state: present
+- name: Add radarr group
+  group:
+    name: radarr
+    state: present
+- name: Add radarr user
+  user:
+    name: radarr
+    group: radarr
+    shell: /sbin/nologin
+    state: present

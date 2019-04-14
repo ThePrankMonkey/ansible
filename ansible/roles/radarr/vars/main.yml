@@ -1,0 +1,4 @@
+---
+# vars file for radarr
+radarr_version: 0.2.0.1293
+radarr_url: https://github.com/Radarr/Radarr/releases/download/v{{ radarr_version }}/Radarr.develop.{{ radarr_version }}.linux.tar.gz

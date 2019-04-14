@@ -1,0 +1,25 @@
+---
+# tasks file for radarr :: network
+- debug:
+    msg:
+    - "###########################"
+    - "##                       ##"
+    - "##   radarr -- network   ##"
+    - "##                       ##"
+    - "###########################"
+- name: Add Firewall File for Radarr
+  copy:
+    src: radarr.xml
+    dest: /etc/firewalld/services/radarr.xml
+  register: firewall_xml
+- name: Reload FirewallD
+  systemd:
+    name: firewalld
+    state: reloaded
+  when: firewall_xml.changed
+- name: Open FirewallD Port
+  firewalld:
+    service: radarr
+    immediate: yes
+    permanent: yes
+    state: enabled

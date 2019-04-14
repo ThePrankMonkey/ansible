@@ -1,0 +1,5 @@
+---
+# tasks file for radarr
+- include_tasks: prereqs.yml
+- include_tasks: install.yml
+- include_tasks: network.yml

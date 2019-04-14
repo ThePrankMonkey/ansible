@@ -1,0 +1,50 @@
+---
+# tasks file for radarr :: install
+- debug:
+    msg:
+    - "###########################"
+    - "##                       ##"
+    - "##   radarr -- install   ##"
+    - "##                       ##"
+    - "###########################"
+- name: Add installation folder
+  file:
+    path: /opt/radarr
+    state: directory
+- name: Download Radarr
+  get_url:
+    url: "{{ radarr_url }}"
+    dest: /tmp/radarr.tar.gz
+  register: radarr_tar
+- block:
+  - name: Ensure /opt/radarr is empty
+    file:
+      path: "{{ item }}"
+      state: absent
+    with_fileglob:
+    - "/opt/radarr/*"
+  - name: Extract radarr.tar.gz
+    unarchive:
+      src: /tmp/radarr.tar.gz
+      dest: /opt/
+      remote_src: yes
+      extra_opts:
+      - --strip 1
+  when: radarr_tar.changed
+- name: Set owner on radarr folder
+  file:
+    path: /opt/radarr
+    owner: radarr
+    group: radarr
+    state: directory
+    recurse: yes
+- name: Add SystemD Unit File
+  copy:
+    src: radarr.service
+    dest: /etc/systemd/system/radarr.service
+- name: Start Radarr Service
+  systemd:
+    name: radarr
+    state: started
+    enabled: yes
+    daemon_reload: yes
