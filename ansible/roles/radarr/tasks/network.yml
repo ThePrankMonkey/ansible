@@ -11,12 +11,7 @@
   copy:
     src: radarr.xml
     dest: /etc/firewalld/services/radarr.xml
-  register: firewall_xml
-- name: Reload FirewallD
-  systemd:
-    name: firewalld
-    state: reloaded
-  when: firewall_xml.changed
+  notify: reload_firewalld
 - name: Open FirewallD Port
   firewalld:
     service: radarr
