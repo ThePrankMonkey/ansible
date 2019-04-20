@@ -1,6 +1,0 @@
----
-# handlers file for radarr
-- name: reload_firewalld
-  systemd:
-    name: firewalld
-    state: reloaded

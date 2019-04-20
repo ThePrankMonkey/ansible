@@ -1,5 +1,0 @@
-<service>
-    <short>radarr</short>
-    <description>Radarr Download Service</description>
-    <port protocol="tcp" port="7878"/>
-</service>
